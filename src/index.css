@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Gantt 스크롤 */
+.gantt-container {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+/* 프로젝트 행 — 수정/삭제/순서 버튼 hover 시에만 표시 */
+.name-cell .row-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.name-cell:hover .row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 상태 셀 색상 */
+.status-active     { background-color: #dbeafe; color: #1d4ed8; }
+.status-complete   { background-color: #dcfce7; color: #15803d; }
+.status-pending    { background-color: #fef9c3; color: #a16207; }
+.status-review     { background-color: #f3e8ff; color: #7e22ce; }
+.status-construction { background-color: #fed7aa; color: #c2410c; }
+.status-inactive   { background-color: #f1f5f9; color: #94a3b8; }
+.status-empty      { background-color: #ffffff; color: #cbd5e1; }
+
+@media print {
+  @page { size: A4 landscape; margin: 6mm 5mm; }
+
+  /* 사이드바, 상단바, 버튼 등 숨기기 */
+  .no-print { display: none !important; }
+  aside { display: none !important; }
+
+  /* 레이아웃 플랫하게 펼치기 */
+  body {
+    background: white !important;
+    font-size: 13pt;
+    font-family: 'Noto Sans KR', -apple-system, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #root > div { display: block !important; height: auto !important; overflow: visible !important; }
+  #root > div > div { display: block !important; overflow: visible !important; }
+  main { overflow: visible !important; height: auto !important; background: white !important; }
+
+  /* 표지 텍스트 */
+  h1 { font-size: 16pt !important; }
+  p  { font-size: 10pt !important; }
+
+  /* 테이블: A4 landscape 전체 너비 채우기 */
+  table { border-collapse: collapse !important; width: 100% !important; table-layout: fixed !important; }
+  th { border: 1px solid #888 !important; font-size: 10pt !important; padding: 2mm 1mm !important; }
+  td { border: 1px solid #bbb !important; font-size: 10pt !important; padding: 1.5mm 1mm !important; }
+  /* 주차 셀: 좁은 열이므로 작게 유지 */
+  td.week-cell { font-size: 8pt !important; padding: 1mm 0.5mm !important; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+
+  /* 섹션 구분 */
+  .pdf-page-break { page-break-before: always; }
+}
