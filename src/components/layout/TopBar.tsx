@@ -1,7 +1,8 @@
 import { FileImportButton } from '@/components/shared/FileImportButton'
 import { PeriodSelector } from '@/components/shared/PeriodSelector'
 import { useAppStore } from '@/store/appStore'
-import { useActiveSheet } from '@/hooks/useFilteredProjects'
+import { useActiveSheet, useFilteredProjects } from '@/hooks/useFilteredProjects'
+import { exportToExcel } from '@/utils/excelExport'
 
 export function TopBar() {
   const selectedExecutiveIds = useAppStore(s => s.selectedExecutiveIds)
@@ -14,8 +15,15 @@ export function TopBar() {
   const hideSameTaskMonths = useAppStore(s => s.hideSameTaskMonths)
   const setHideSameTaskMonths = useAppStore(s => s.setHideSameTaskMonths)
   const sheet = useActiveSheet()
+  const projects = useFilteredProjects()
+  const assigneeOverrides = useAppStore(s => s.assigneeOverrides)
 
   const availableExecs = sheet?.executives || []
+
+  function handleExcelExport() {
+    if (!sheet) return
+    exportToExcel(projects, sheet, assigneeOverrides, `임원회의_진행일정표_${sheet.sheetId}.xlsx`)
+  }
 
   return (
     <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 flex-wrap no-print">
@@ -96,6 +104,15 @@ export function TopBar() {
         />
 
         <FileImportButton />
+        {sheet && (
+          <button
+            onClick={handleExcelExport}
+            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 whitespace-nowrap"
+            title="현재 데이터를 Excel로 다운로드"
+          >
+            ⬇ Excel
+          </button>
+        )}
       </div>
     </div>
   )

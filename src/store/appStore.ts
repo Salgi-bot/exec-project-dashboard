@@ -19,10 +19,11 @@ interface AppState {
   hideSameTaskMonths: 0 | 3 | 6 | 12
 
   // 담당자 & 프로젝트 순서 & 삭제
-  assigneeOverrides: Record<string, string>   // projectId → 담당자명
+  assigneeOverrides: Record<string, string>   // projectId → 담당자명 (쉼표로 복수 가능)
   projectOrderMap: Record<string, number>     // projectId → 정렬 순서값
   deletedProjectIds: string[]                 // 삭제된 프로젝트 ID
-  projectMetaEdits: Record<string, { projectName: string; client: string }>  // 이름/발주처 수정
+  projectMetaEdits: Record<string, { projectName: string; client: string; executiveId?: string }>  // 이름/발주처/담당임원 수정
+  execOrder: Record<string, string[]>         // sheetId → 담당임원 순서
 
   // UI
   viewMode: ViewMode
@@ -49,7 +50,8 @@ interface AppState {
   reorderProject: (projectId: string, direction: -1 | 1, siblingIds: string[]) => void
   deleteProject: (projectId: string) => void
   restoreProject: (projectId: string) => void
-  updateProjectMeta: (projectId: string, projectName: string, client: string) => void
+  updateProjectMeta: (projectId: string, projectName: string, client: string, executiveId?: string) => void
+  setExecOrder: (sheetId: string, order: string[]) => void
 
   // 액션 - UI
   setViewMode: (mode: ViewMode) => void
@@ -73,6 +75,7 @@ export const useAppStore = create<AppState>()(
       projectOrderMap: {},
       deletedProjectIds: [],
       projectMetaEdits: {},
+      execOrder: {},
       viewMode: 'dashboard',
       selectedProjectId: null,
       editingCell: null,
@@ -188,8 +191,30 @@ export const useAppStore = create<AppState>()(
         deletedProjectIds: state.deletedProjectIds.filter(id => id !== projectId),
       })),
 
-      updateProjectMeta: (projectId, projectName, client) => set((state) => ({
-        projectMetaEdits: { ...state.projectMetaEdits, [projectId]: { projectName, client } },
+      updateProjectMeta: (projectId, projectName, client, executiveId) => set((state) => {
+        const meta: { projectName: string; client: string; executiveId?: string } = { projectName, client }
+        if (executiveId) meta.executiveId = executiveId
+        // 담당임원 변경 시 sheets도 업데이트
+        let sheets = state.sheets
+        if (executiveId) {
+          sheets = { ...state.sheets }
+          for (const id of SHEET_IDS) {
+            const sheet = sheets[id]
+            if (!sheet) continue
+            const idx = sheet.projects.findIndex(p => p.id === projectId)
+            if (idx >= 0) {
+              const updated = [...sheet.projects]
+              updated[idx] = { ...updated[idx], executiveId }
+              sheets[id] = { ...sheet, projects: updated }
+              break
+            }
+          }
+        }
+        return { projectMetaEdits: { ...state.projectMetaEdits, [projectId]: meta }, sheets }
+      }),
+
+      setExecOrder: (sheetId, order) => set((state) => ({
+        execOrder: { ...state.execOrder, [sheetId]: order },
       })),
 
       setViewMode: (mode) => set({ viewMode: mode }),
@@ -208,6 +233,7 @@ export const useAppStore = create<AppState>()(
         projectOrderMap: state.projectOrderMap,
         deletedProjectIds: state.deletedProjectIds,
         projectMetaEdits: state.projectMetaEdits,
+        execOrder: state.execOrder,
       }),
     }
   )

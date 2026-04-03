@@ -73,7 +73,9 @@ export function useFilteredProjects(): Project[] {
     const projects = sheet.projects.map(p => {
       // 프로젝트명/발주처 수정 적용
       const meta = projectMetaEdits[p.id]
-      const base = meta ? { ...p, projectName: meta.projectName, client: meta.client, name: meta.projectName } : p
+      const base = meta
+        ? { ...p, projectName: meta.projectName, client: meta.client, name: meta.projectName, ...(meta.executiveId ? { executiveId: meta.executiveId } : {}) }
+        : p
 
       const edits = editQueue.filter(e => e.projectId === p.id)
       if (edits.length === 0) return base

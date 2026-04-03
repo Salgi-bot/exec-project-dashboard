@@ -8,10 +8,10 @@ import { StatusEditModal } from './StatusEditModal'
 import { AddProjectModal } from './AddProjectModal'
 import { getMonthLabels } from '@/constants/periods'
 import { isProjectDuplicate } from '@/utils/similarity'
-import { EXECUTIVE_MAP } from '@/constants/executives'
+import { EXECUTIVE_MAP, EXECUTIVES } from '@/constants/executives'
 import type { StatusCategory, Executive, SheetPeriod } from '@/types/project.types'
 
-interface MetaEdit { id: string; projectName: string; client: string }
+interface MetaEdit { id: string; projectName: string; client: string; executiveId: string }
 interface DupPanel { conflicts: Array<{ id: string; text: string }>; x: number; y: number }
 
 const STATUS_CELL_BG: Record<StatusCategory, string> = {
@@ -34,7 +34,7 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
 }
 
 const CELL_W      = 48
-const NAME_W      = 200   // 프로젝트명 컬럼
+const NAME_W      = 260   // 프로젝트명 컬럼
 const ASSIGNEE_W  = 72    // 담당자 컬럼
 const ROW_H       = 36
 const HEADER_H    = ROW_H * 3 - 4
@@ -68,11 +68,12 @@ export function GanttView() {
   const restoreProject      = useAppStore(s => s.restoreProject)
   const updateProjectMeta   = useAppStore(s => s.updateProjectMeta)
   const deletedProjectIds   = useAppStore(s => s.deletedProjectIds)
+  const execOrderMap        = useAppStore(s => s.execOrder)
+  const setExecOrderStore   = useAppStore(s => s.setExecOrder)
 
   const [tooltip, setTooltip]     = useState<{ text: string; x: number; y: number } | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addExec, setAddExec]     = useState<Executive | null>(null)
-  const [execOrder, setExecOrder] = useState<string[]>([])
   const [editingAssigneeId, setEditingAssigneeId] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput]         = useState('')
   const [editingMeta, setEditingMeta]             = useState<MetaEdit | null>(null)
@@ -85,8 +86,13 @@ export function GanttView() {
   const dragState = useRef<{ projectId: string; startAbs: number; currentAbs: number } | null>(null)
   const [dragHighlight, setDragHighlight] = useState<{ projectId: string; lo: number; hi: number } | null>(null)
 
+  const execOrder = sheet ? (execOrderMap[sheet.sheetId] ?? []) : []
+
   useEffect(() => {
-    if (sheet) setExecOrder(sheet.executives.map(e => e.id))
+    if (!sheet) return
+    if (!execOrderMap[sheet.sheetId]?.length) {
+      setExecOrderStore(sheet.sheetId, sheet.executives.map(e => e.id))
+    }
   }, [sheet?.sheetId])
 
   useEffect(() => {
@@ -167,15 +173,14 @@ export function GanttView() {
   }, [sheet.projects, deletedProjectIds])
 
   function moveExec(id: string, dir: -1 | 1) {
-    setExecOrder(prev => {
-      const order = prev.length ? [...prev] : executives.map(e => e.id)
-      const idx = order.indexOf(id)
-      const next = idx + dir
-      if (idx < 0 || next < 0 || next >= order.length) return order
-      const arr = [...order]
-      ;[arr[idx], arr[next]] = [arr[next], arr[idx]]
-      return arr
-    })
+    if (!sheet) return
+    const order = execOrder.length ? [...execOrder] : executives.map(e => e.id)
+    const idx = order.indexOf(id)
+    const next = idx + dir
+    if (idx < 0 || next < 0 || next >= order.length) return
+    const arr = [...order]
+    ;[arr[idx], arr[next]] = [arr[next], arr[idx]]
+    setExecOrderStore(sheet.sheetId, arr)
   }
 
   function getCellText(projectId: string, monthIndex: number, weekIndex: number, defaultText: string): string {
@@ -195,7 +200,7 @@ export function GanttView() {
 
   function saveMetaEdit() {
     if (!editingMeta) return
-    updateProjectMeta(editingMeta.id, editingMeta.projectName.trim(), editingMeta.client.trim())
+    updateProjectMeta(editingMeta.id, editingMeta.projectName.trim(), editingMeta.client.trim(), editingMeta.executiveId)
     setEditingMeta(null)
   }
 
@@ -411,7 +416,7 @@ export function GanttView() {
                           <button
                             onClick={e => {
                               e.stopPropagation()
-                              setEditingMeta({ id: project.id, projectName: project.projectName, client: project.client || '' })
+                              setEditingMeta({ id: project.id, projectName: project.projectName, client: project.client || '', executiveId: project.executiveId })
                             }}
                             className="text-gray-400 hover:text-blue-600 text-xs px-0.5"
                             title="수정"
@@ -588,6 +593,18 @@ export function GanttView() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 placeholder="발주처 또는 시공사명"
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">담당 임원</label>
+              <select
+                value={editingMeta.executiveId}
+                onChange={e => setEditingMeta(m => m ? { ...m, executiveId: e.target.value } : m)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                {EXECUTIVES.map(e => (
+                  <option key={e.id} value={e.id}>{e.name} {e.title}</option>
+                ))}
+              </select>
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setEditingMeta(null)}
