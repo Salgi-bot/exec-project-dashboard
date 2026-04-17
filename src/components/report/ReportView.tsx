@@ -123,14 +123,13 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 2페이지 고정용 가변 행높이 (임원헤더 행 제거 후)
-  // A4 가로 2장 = (210-16)mm × 2 = 388mm. 배너 ~14mm + thead×2 ~22mm = 36mm 소요.
-  // tbody 가용 = 352mm = ~1331px(@96dpi). 행 자연높이 ≈ font + 1.5px.
-  const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length, 0)
-  const rawFont = totalRows > 0 ? 1331 / totalRows - 1.5 : 9
-  const bodyFont = Math.max(5.5, Math.min(9, rawFont))
+  // 2페이지 고정용 가변 행높이 (세로 A4, 밴드 포함)
+  // A4 세로 2장 tbody 가용 ≈ 2050px. 섹션 밴드 포함 총 행수로 분모.
+  const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length + 1, 0)
+  const rawFont = totalRows > 0 ? 2050 / totalRows / 1.6 : 8
+  const bodyFont = Math.max(5.5, Math.min(8, rawFont))
   const cellFont = Math.max(5, bodyFont - 0.5)
-  const headerFont = Math.max(6, Math.min(9, bodyFont))
+  const headerFont = Math.max(6, Math.min(9, bodyFont + 0.5))
 
   return (
     <div className="p-6">
@@ -185,14 +184,15 @@ export function ReportView() {
                 if (!exec) return null
                 const totalCols = 1 + printMonths * 4
                 return [
-                  /* 임원 섹션 밴드 */
+                  /* 임원 섹션 밴드 (컴팩트) */
                   <tr key={`band-${exec.id}`} className="exec-band">
                     <td colSpan={totalCols}
                       className="report-td font-bold"
                       style={{
-                        fontSize: `${bodyFont + 0.5}px`,
+                        fontSize: `${bodyFont}px`,
                         backgroundColor: '#e5e7eb',
-                        padding: '3px 6px',
+                        padding: '1px 5px',
+                        lineHeight: 1.2,
                       }}>
                       ■ {exec.name} ({projects.length}건)
                     </td>
@@ -201,11 +201,11 @@ export function ReportView() {
                   ...projects.map(project => {
                     const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
                     return (
-                      <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.25 }}>
+                      <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.15 }}>
                         <td className="report-td align-middle"
                           style={{
                             fontSize: `${bodyFont}px`,
-                            padding: '2px 4px',
+                            padding: '1px 3px',
                             whiteSpace: 'normal',
                             wordBreak: 'keep-all',
                             overflowWrap: 'break-word',
@@ -217,7 +217,7 @@ export function ReportView() {
                             className="report-td text-center align-middle"
                             style={{
                               fontSize: `${cellFont}px`,
-                              padding: '2px 2px',
+                              padding: '1px 1px',
                               whiteSpace: 'normal',
                               wordBreak: 'keep-all',
                               overflowWrap: 'break-word',
