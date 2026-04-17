@@ -161,9 +161,9 @@ export function ReportView() {
         <div className="px-2 pt-1">
           <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: `${bodyFont}px` }}>
             <colgroup>
-              <col style={{ width: '28%' }} />  {/* 프로젝트명 */}
+              <col style={{ width: '34%' }} />  {/* 프로젝트명 (넓게) */}
               {printLabels.map((_, mi) =>
-                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${72 / (printMonths * 4)}%` }} />)
+                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${66 / (printMonths * 4)}%` }} />)
               )}
             </colgroup>
             <thead>
@@ -184,28 +184,28 @@ export function ReportView() {
                 if (!exec) return null
                 const totalCols = 1 + printMonths * 4
                 return [
-                  /* 임원 섹션 밴드 (컴팩트) */
+                  /* 임원 섹션 밴드 (최소 높이) */
                   <tr key={`band-${exec.id}`} className="exec-band">
                     <td colSpan={totalCols}
                       className="report-td font-bold"
                       style={{
                         fontSize: `${bodyFont}px`,
                         backgroundColor: '#e5e7eb',
-                        padding: '1px 5px',
-                        lineHeight: 1.2,
+                        padding: '0 5px',
+                        lineHeight: 1.1,
                       }}>
                       ■ {exec.name} ({projects.length}건)
                     </td>
                   </tr>,
-                  /* 프로젝트 행 */
+                  /* 프로젝트 행 (행 높이 최소화) */
                   ...projects.map(project => {
                     const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
                     return (
-                      <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.15 }}>
+                      <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.1 }}>
                         <td className="report-td align-middle"
                           style={{
                             fontSize: `${bodyFont}px`,
-                            padding: '1px 3px',
+                            padding: '0 3px',
                             whiteSpace: 'normal',
                             wordBreak: 'keep-all',
                             overflowWrap: 'break-word',
@@ -217,7 +217,7 @@ export function ReportView() {
                             className="report-td text-center align-middle"
                             style={{
                               fontSize: `${cellFont}px`,
-                              padding: '1px 1px',
+                              padding: '0 1px',
                               whiteSpace: 'normal',
                               wordBreak: 'keep-all',
                               overflowWrap: 'break-word',
