@@ -2,13 +2,13 @@ import type { StatusCategory } from '@/types/project.types'
 import { statusCategoryLabel } from '@/utils/statusClassifier'
 
 const categoryClasses: Record<StatusCategory, string> = {
-  active:       'bg-blue-100 text-blue-800',
-  complete:     'bg-green-100 text-green-800',
-  pending:      'bg-yellow-100 text-yellow-800',
-  review:       'bg-purple-100 text-purple-800',
-  construction: 'bg-orange-100 text-orange-800',
-  inactive:     'bg-gray-100 text-gray-500',
-  empty:        'bg-gray-50 text-gray-300',
+  active:       'status-active',
+  complete:     'status-complete',
+  pending:      'status-pending',
+  review:       'status-review',
+  construction: 'status-construction',
+  inactive:     'status-inactive',
+  empty:        'status-empty',
 }
 
 interface Props {
@@ -28,11 +28,11 @@ export function StatusBadge({ category, size = 'sm' }: Props) {
 
 export function StatusDot({ category }: { category: StatusCategory }) {
   const dotColors: Record<StatusCategory, string> = {
-    active: 'bg-blue-400',
-    complete: 'bg-green-400',
-    pending: 'bg-yellow-400',
-    review: 'bg-purple-400',
-    construction: 'bg-orange-400',
+    active: 'bg-[color:var(--ci-blue)]',
+    complete: 'bg-[color:var(--ci-green)]',
+    pending: 'bg-gray-400',
+    review: 'bg-gray-400',
+    construction: 'bg-gray-400',
     inactive: 'bg-gray-300',
     empty: 'bg-gray-100',
   }

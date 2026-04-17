@@ -144,7 +144,10 @@ export function ReportView() {
           <button
             onClick={handlePDF}
             disabled={generating}
-            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+            className="px-5 py-2.5 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+            style={{ backgroundColor: 'var(--ci-blue)' }}
+            onMouseEnter={e => { if (!generating) e.currentTarget.style.backgroundColor = 'var(--ci-blue-dark)' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue)' }}
           >
             {generating ? '준비 중...' : '인쇄 / PDF 저장'}
           </button>

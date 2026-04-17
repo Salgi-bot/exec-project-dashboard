@@ -66,9 +66,10 @@ export function TopBar({ onMenuClick }: Props) {
                 onClick={() => toggleExecutive(exec.id)}
                 className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                   selectedExecutiveIds.includes(exec.id)
-                    ? 'bg-blue-600 text-white'
+                    ? 'text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
+                style={selectedExecutiveIds.includes(exec.id) ? { backgroundColor: 'var(--ci-blue)' } : undefined}
               >
                 {exec.name}
               </button>
@@ -80,7 +81,7 @@ export function TopBar({ onMenuClick }: Props) {
           onClick={() => setHideEmpty(!hideEmpty)}
           className={`px-2 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap ${
             hideEmpty
-              ? 'bg-orange-500 text-white'
+              ? 'bg-gray-700 text-white'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
           title="내용 없음 또는 '-'만 있는 항목 숨기기"
@@ -96,7 +97,7 @@ export function TopBar({ onMenuClick }: Props) {
               onClick={() => setHideSameTaskMonths(n === hideSameTaskMonths ? 0 : n)}
               className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                 hideSameTaskMonths === n && n > 0
-                  ? 'bg-purple-500 text-white'
+                  ? 'bg-gray-700 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
               title={n === 0 ? '필터 해제' : `${n}개월 이상 동일 업무 숨기기`}
@@ -118,7 +119,10 @@ export function TopBar({ onMenuClick }: Props) {
         {sheet && (
           <button
             onClick={handleExcelExport}
-            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 whitespace-nowrap"
+            className="px-3 py-1.5 text-white rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+            style={{ backgroundColor: 'var(--ci-green)' }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--ci-green-dark)' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-green)' }}
             title="현재 데이터를 Excel로 다운로드"
           >
             Excel

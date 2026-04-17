@@ -36,7 +36,7 @@ export function DashboardView() {
         </div>
         <div className="flex gap-6 text-sm">
           <span className="text-gray-500">총 <b className="text-gray-800 text-lg">{displayProjects.length}</b>건</span>
-          <span className="text-gray-500">진행중 <b className="text-blue-600 text-lg">{activeCount}</b>건</span>
+          <span className="text-gray-500">진행중 <b className="text-lg" style={{ color: 'var(--ci-blue)' }}>{activeCount}</b>건</span>
         </div>
       </div>
 
