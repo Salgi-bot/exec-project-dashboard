@@ -58,7 +58,6 @@ function buildPrintRow(
 export function ReportView() {
   const sheet       = useActiveSheet()
   const allProjects = useFilteredProjects()
-  const assigneeOverrides = useAppStore(s => s.assigneeOverrides)
   const execOrderMap = useAppStore(s => s.execOrder)
   const printRef    = useRef<HTMLDivElement>(null)
   const [generating, setGenerating] = useState(false)
@@ -110,23 +109,14 @@ export function ReportView() {
     return ordered.filter(Boolean)
   }, [sheet.executives, execOrder, grouped])
 
-  // rowspan 데이터 사전 계산 (팀장: 임원당 1, 담당자: 연속 같은 이름 묶음)
+  // 팀장 컬럼 rowspan용 데이터
   const execRowsData = useMemo(() => {
     return orderedExecs.map(exec => {
       if (!exec) return null
       const projects = grouped.get(exec.id) ?? []
-      const assignees = projects.map(p => assigneeOverrides[p.id] || exec.name)
-      const runs: { startIdx: number; span: number; assignee: string }[] = []
-      let i = 0
-      while (i < assignees.length) {
-        let j = i
-        while (j < assignees.length && assignees[j] === assignees[i]) j++
-        runs.push({ startIdx: i, span: j - i, assignee: assignees[i] })
-        i = j
-      }
-      return { exec, projects, assignees, runs }
-    }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects; assignees: string[]; runs: { startIdx: number; span: number; assignee: string }[] }[]
-  }, [orderedExecs, grouped, assigneeOverrides])
+      return { exec, projects }
+    }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
+  }, [orderedExecs, grouped])
 
   // 2페이지 고정용 가변 행높이 (임원헤더 행 제거 후)
   // A4 가로 2장 = (210-16)mm × 2 = 388mm. 배너 ~14mm + thead×2 ~22mm = 36mm 소요.
@@ -159,28 +149,23 @@ export function ReportView() {
       </div>
 
       <div ref={printRef} className="bg-white print-area">
-        {/* 컴팩트 배너 (별도 페이지 X, 표 상단) */}
-        <div className="px-2 py-1 border-b border-gray-400 flex items-baseline justify-between print-no-break" style={{ height: '14mm' }}>
-          <h1 className="font-bold text-gray-800" style={{ fontSize: '11px' }}>■ 임원회의 PROJECT 진행일정표</h1>
-          <p className="text-gray-500" style={{ fontSize: '8px' }}>
-            {sheet.period.label} | 범위: {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label} | 생성: {new Date().toLocaleDateString('ko-KR')}
-          </p>
+        {/* 제목만 */}
+        <div className="px-2 py-1 border-b border-gray-400 print-no-break">
+          <h1 className="font-bold text-gray-800" style={{ fontSize: '13px' }}>■ 임원회의 PROJECT 진행일정표</h1>
         </div>
 
         <div className="px-2 pt-1">
           <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: `${bodyFont}px` }}>
             <colgroup>
-              <col style={{ width: '5%' }} />   {/* 팀장 */}
-              <col style={{ width: '8%' }} />   {/* 담당자 */}
-              <col style={{ width: '15%' }} />  {/* 프로젝트명 */}
+              <col style={{ width: '10%' }} />  {/* 팀장 */}
+              <col style={{ width: '22%' }} />  {/* 프로젝트명 */}
               {printLabels.map((_, mi) =>
-                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${72 / (printMonths * 4)}%` }} />)
+                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${68 / (printMonths * 4)}%` }} />)
               )}
             </colgroup>
             <thead>
               <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
                 <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>팀장</th>
-                <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>담당자</th>
                 <th className="border border-gray-400 p-0.5 text-left" style={{ fontSize: `${headerFont}px` }}>프로젝트명</th>
                 {printLabels.map((ml, mi) => {
                   const showYear = mi === 0 || (mi > 0 && ml.yearShort !== printLabels[mi - 1].yearShort)
@@ -193,16 +178,13 @@ export function ReportView() {
               </tr>
             </thead>
             <tbody>
-              {execRowsData.map(({ exec, projects, runs }) => {
+              {execRowsData.map(({ exec, projects }) => {
                 if (!exec) return null
                 return projects.map((project, pi) => {
                   const isFirstInExec = pi === 0
-                  const run = runs.find(r => pi >= r.startIdx && pi < r.startIdx + r.span)!
-                  const isFirstInAssignee = pi === run.startIdx
-                  const assigneeText = run.assignee.split(',').map(s => s.trim()).filter(Boolean).join(', ')
                   const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
                   return (
-                    <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.15 }}>
+                    <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.2 }}>
                       {isFirstInExec && (
                         <td rowSpan={projects.length}
                           className="border border-gray-400 text-center align-middle font-medium"
@@ -214,14 +196,14 @@ export function ReportView() {
                           {exec.name}
                         </td>
                       )}
-                      {isFirstInAssignee && (
-                        <td rowSpan={run.span}
-                          className="border border-gray-300 text-center align-middle"
-                          style={{ fontSize: `${bodyFont}px`, padding: '0 2px', wordBreak: 'keep-all' }}>
-                          {assigneeText}
-                        </td>
-                      )}
-                      <td className="border border-gray-300 align-middle" style={{ fontSize: `${bodyFont}px`, padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={project.projectName}>
+                      <td className="border border-gray-300 align-middle"
+                        style={{
+                          fontSize: `${bodyFont}px`,
+                          padding: '2px 3px',
+                          whiteSpace: 'normal',
+                          wordBreak: 'keep-all',
+                          overflowWrap: 'break-word',
+                        }}>
                         {project.projectName}
                       </td>
                       {printCells.map((cell, ci) => (
@@ -229,10 +211,10 @@ export function ReportView() {
                           className="week-cell border border-gray-200 text-center align-middle"
                           style={{
                             fontSize: `${cellFont}px`,
-                            padding: '0 1px',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
+                            padding: '2px 2px',
+                            whiteSpace: 'normal',
+                            wordBreak: 'keep-all',
+                            overflowWrap: 'break-word',
                           }}>
                           {cell.text && cell.text !== '-' ? cell.text
                             : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
