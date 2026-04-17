@@ -39,6 +39,11 @@ function buildPrintRow(
   const result: { text: string; colSpan: number; category: StatusCategory }[] = []
   let pos = startAbs
 
+  const pushEmpty = (span: number) => {
+    if (span <= 0) return
+    result.push({ text: '', colSpan: span, category: 'empty' })
+  }
+
   for (const ws of origins) {
     const wsEnd = ws.abs + ws.colSpan
     if (wsEnd <= startAbs) continue
@@ -46,12 +51,12 @@ function buildPrintRow(
     const cellStart = Math.max(ws.abs, startAbs)
     const cellEnd   = Math.min(wsEnd, endAbs)
     const cellSpan  = cellEnd - cellStart
-    while (pos < cellStart) { result.push({ text: '', colSpan: 1, category: 'empty' }); pos++ }
+    pushEmpty(cellStart - pos)
     const cat = ws.text ? classifyStatus(ws.text) : 'empty'
     result.push({ text: ws.text, colSpan: cellSpan, category: cat })
     pos = cellEnd
   }
-  while (pos < endAbs) { result.push({ text: '', colSpan: 1, category: 'empty' }); pos++ }
+  pushEmpty(endAbs - pos)
   return result
 }
 
