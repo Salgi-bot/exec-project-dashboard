@@ -157,20 +157,18 @@ export function ReportView() {
         <div className="px-2 pt-1">
           <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: `${bodyFont}px` }}>
             <colgroup>
-              <col style={{ width: '10%' }} />  {/* 팀장 */}
-              <col style={{ width: '22%' }} />  {/* 프로젝트명 */}
+              <col style={{ width: '28%' }} />  {/* 프로젝트명 */}
               {printLabels.map((_, mi) =>
-                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${68 / (printMonths * 4)}%` }} />)
+                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${72 / (printMonths * 4)}%` }} />)
               )}
             </colgroup>
             <thead>
               <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>팀장</th>
-                <th className="border border-gray-400 p-0.5 text-left" style={{ fontSize: `${headerFont}px` }}>프로젝트명</th>
+                <th className="report-th text-left" style={{ fontSize: `${headerFont}px` }}>프로젝트명</th>
                 {printLabels.map((ml, mi) => {
                   const showYear = mi === 0 || (mi > 0 && ml.yearShort !== printLabels[mi - 1].yearShort)
                   return (
-                    <th key={mi} colSpan={4} className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>
+                    <th key={mi} colSpan={4} className="report-th text-center" style={{ fontSize: `${headerFont}px` }}>
                       {showYear ? `${ml.yearShort} ` : ''}{ml.label}
                     </th>
                   )
@@ -180,49 +178,53 @@ export function ReportView() {
             <tbody>
               {execRowsData.map(({ exec, projects }) => {
                 if (!exec) return null
-                return projects.map((project, pi) => {
-                  const isFirstInExec = pi === 0
-                  const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
-                  return (
-                    <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.2 }}>
-                      {isFirstInExec && (
-                        <td rowSpan={projects.length}
-                          className="border border-gray-400 text-center align-middle font-medium"
+                const totalCols = 1 + printMonths * 4
+                return [
+                  /* 임원 섹션 밴드 */
+                  <tr key={`band-${exec.id}`} className="exec-band">
+                    <td colSpan={totalCols}
+                      className="report-td font-bold"
+                      style={{
+                        fontSize: `${bodyFont + 0.5}px`,
+                        backgroundColor: '#e5e7eb',
+                        padding: '3px 6px',
+                      }}>
+                      ■ {exec.name} ({projects.length}건)
+                    </td>
+                  </tr>,
+                  /* 프로젝트 행 */
+                  ...projects.map(project => {
+                    const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
+                    return (
+                      <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.25 }}>
+                        <td className="report-td align-middle"
                           style={{
                             fontSize: `${bodyFont}px`,
-                            padding: '2px',
-                            wordBreak: 'keep-all',
-                          }}>
-                          {exec.name}
-                        </td>
-                      )}
-                      <td className="border border-gray-300 align-middle"
-                        style={{
-                          fontSize: `${bodyFont}px`,
-                          padding: '2px 3px',
-                          whiteSpace: 'normal',
-                          wordBreak: 'keep-all',
-                          overflowWrap: 'break-word',
-                        }}>
-                        {project.projectName}
-                      </td>
-                      {printCells.map((cell, ci) => (
-                        <td key={ci} colSpan={cell.colSpan}
-                          className="week-cell border border-gray-200 text-center align-middle"
-                          style={{
-                            fontSize: `${cellFont}px`,
-                            padding: '2px 2px',
+                            padding: '2px 4px',
                             whiteSpace: 'normal',
                             wordBreak: 'keep-all',
                             overflowWrap: 'break-word',
                           }}>
-                          {cell.text && cell.text !== '-' ? cell.text
-                            : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
+                          {project.projectName}
                         </td>
-                      ))}
-                    </tr>
-                  )
-                })
+                        {printCells.map((cell, ci) => (
+                          <td key={ci} colSpan={cell.colSpan}
+                            className="report-td text-center align-middle"
+                            style={{
+                              fontSize: `${cellFont}px`,
+                              padding: '2px 2px',
+                              whiteSpace: 'normal',
+                              wordBreak: 'keep-all',
+                              overflowWrap: 'break-word',
+                            }}>
+                            {cell.text && cell.text !== '-' ? cell.text
+                              : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
+                          </td>
+                        ))}
+                      </tr>
+                    )
+                  }),
+                ]
               })}
             </tbody>
           </table>
@@ -230,6 +232,14 @@ export function ReportView() {
       </div>
 
       <style>{`
+        .report-th, .report-td {
+          border: 1px solid #9ca3af;
+          box-sizing: border-box;
+        }
+        .report-th { padding: 2px; }
+        .exec-band { break-after: avoid; page-break-after: avoid; }
+        .exec-band + tr { break-before: avoid; page-break-before: avoid; }
+
         @page { size: A4 portrait; margin: 10mm; }
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
@@ -237,10 +247,11 @@ export function ReportView() {
           .print-area, .print-area * { visibility: visible; }
           .print-area { position: absolute; left: 0; top: 0; width: 100%; }
           .no-print { display: none !important; }
-          .print-no-break { page-break-inside: avoid; }
+          .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; }
           thead { display: table-header-group; }
-          tr { page-break-inside: avoid; }
+          tfoot { display: table-footer-group; }
+          tr { page-break-inside: avoid; break-inside: avoid; }
         }
       `}</style>
     </div>
