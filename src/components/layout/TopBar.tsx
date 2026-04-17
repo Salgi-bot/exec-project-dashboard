@@ -4,7 +4,11 @@ import { useAppStore } from '@/store/appStore'
 import { useActiveSheet, useFilteredProjects } from '@/hooks/useFilteredProjects'
 import { exportToExcel } from '@/utils/excelExport'
 
-export function TopBar() {
+interface Props {
+  onMenuClick: () => void
+}
+
+export function TopBar({ onMenuClick }: Props) {
   const selectedExecutiveIds = useAppStore(s => s.selectedExecutiveIds)
   const toggleExecutive = useAppStore(s => s.toggleExecutive)
   const setAllExecutives = useAppStore(s => s.setAllExecutives)
@@ -26,14 +30,26 @@ export function TopBar() {
   }
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 flex-wrap no-print">
+    <div className="bg-white border-b border-gray-200 px-3 md:px-6 py-3 flex items-center gap-2 md:gap-4 flex-wrap no-print">
+      <button
+        onClick={onMenuClick}
+        className="md:hidden p-1.5 rounded hover:bg-gray-100"
+        aria-label="메뉴 열기"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
       <PeriodSelector />
 
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="flex items-center gap-1.5 md:gap-2 ml-auto flex-wrap justify-end">
         {/* 임원 필터 */}
         {availableExecs.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-gray-500">임원:</span>
+            <span className="text-xs text-gray-500 hidden sm:inline">임원:</span>
             <button
               onClick={() => setAllExecutives([])}
               className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
@@ -60,7 +76,6 @@ export function TopBar() {
           </div>
         )}
 
-        {/* 빈 항목 숨기기 */}
         <button
           onClick={() => setHideEmpty(!hideEmpty)}
           className={`px-2 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap ${
@@ -70,12 +85,11 @@ export function TopBar() {
           }`}
           title="내용 없음 또는 '-'만 있는 항목 숨기기"
         >
-          빈 항목 숨기기
+          빈 항목 숨김
         </button>
 
-        {/* 장기 동일 업무 숨기기 */}
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-400 whitespace-nowrap">동일업무:</span>
+          <span className="text-xs text-gray-400 whitespace-nowrap hidden sm:inline">동일업무:</span>
           {([0, 3, 6, 12] as const).map(n => (
             <button
               key={n}
@@ -83,8 +97,6 @@ export function TopBar() {
               className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                 hideSameTaskMonths === n && n > 0
                   ? 'bg-purple-500 text-white'
-                  : n === 0
-                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
               title={n === 0 ? '필터 해제' : `${n}개월 이상 동일 업무 숨기기`}
@@ -94,13 +106,12 @@ export function TopBar() {
           ))}
         </div>
 
-        {/* 검색 */}
         <input
           type="text"
-          placeholder="프로젝트 검색..."
+          placeholder="검색..."
           value={searchText}
           onChange={e => setSearchText(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-32 md:w-48 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
 
         <FileImportButton />
@@ -110,7 +121,7 @@ export function TopBar() {
             className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 whitespace-nowrap"
             title="현재 데이터를 Excel로 다운로드"
           >
-            ⬇ Excel
+            Excel
           </button>
         )}
       </div>

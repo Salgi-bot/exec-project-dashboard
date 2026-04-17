@@ -1,3 +1,3 @@
-export async function generatePDF(_element: HTMLElement, _filename: string): Promise<void> {
+export function generatePDF(): void {
   window.print()
 }

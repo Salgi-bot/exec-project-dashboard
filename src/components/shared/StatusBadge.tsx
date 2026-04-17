@@ -39,6 +39,3 @@ export function StatusDot({ category }: { category: StatusCategory }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${dotColors[category]}`} />
 }
 
-export function statusCellClass(category: StatusCategory): string {
-  return `status-${category}`
-}

@@ -129,12 +129,12 @@ export function ProjectListView() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">📋 프로젝트 목록</h2>
+        <h2 className="text-2xl font-bold text-gray-800">■ 프로젝트 목록</h2>
         <p className="text-gray-500 text-sm mt-1">{totalProjects}건 / {executives.length}명</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm border-collapse">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+        <table className="w-full text-sm border-collapse min-w-[720px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-3 py-3 text-gray-600 font-semibold w-24">담당임원</th>

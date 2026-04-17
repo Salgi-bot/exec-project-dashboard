@@ -77,7 +77,7 @@ export function ReportView() {
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   const monthLabels = getMonthLabels(sheet.period)
-  const PRINT_MONTHS = 7
+  const PRINT_MONTHS = 5  // 과거3 + 현재1 + 미래1
   const currentMonthIdx = getCurrentMonthIndex(sheet.period)
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
   let printEnd = Math.min(sheet.period.totalMonths, adjustedStart + PRINT_MONTHS)
@@ -87,11 +87,10 @@ export function ReportView() {
   const printMonths = printEnd - adjustedStart
   const printLabels = monthLabels.slice(adjustedStart, adjustedStart + printMonths)
 
-  const handlePDF = async () => {
-    if (!printRef.current) return
+  const handlePDF = () => {
     setGenerating(true)
     try {
-      await generatePDF(printRef.current, `임원회의_진행일정표_${sheet.sheetId}.pdf`)
+      generatePDF()
     } finally {
       setGenerating(false)
     }
@@ -145,17 +144,17 @@ export function ReportView() {
   // tbody 가용 = 352mm = ~1331px(@96dpi). 행 자연높이 ≈ font + 1.5px.
   const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length, 0)
   const rawFont = totalRows > 0 ? 1331 / totalRows - 1.5 : 9
-  const bodyFont = Math.max(4.5, Math.min(9, rawFont))
-  const cellFont = Math.max(4, bodyFont - 0.5)
-  const headerFont = Math.max(5, Math.min(9, bodyFont))
+  const bodyFont = Math.max(5.5, Math.min(9, rawFont))
+  const cellFont = Math.max(5, bodyFont - 0.5)
+  const headerFont = Math.max(6, Math.min(9, bodyFont))
 
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between no-print">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">📄 PDF 리포트</h2>
+          <h2 className="text-2xl font-bold text-gray-800">■ PDF 리포트</h2>
           <p className="text-gray-500 text-sm mt-1">
-            {sheet.period.label} &nbsp;|&nbsp; 출력 범위: {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label} ({printMonths}개월)
+            {sheet.period.label} | 출력 범위: {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -164,9 +163,9 @@ export function ReportView() {
             disabled={generating}
             className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
           >
-            {generating ? '준비 중...' : '🖨️ 인쇄 / PDF 저장'}
+            {generating ? '준비 중...' : '인쇄 / PDF 저장'}
           </button>
-          <span className="text-xs text-orange-600">⚠️ 인쇄 대화상자에서 <b>방향: 가로</b> 선택 필수</span>
+          <span className="text-xs text-orange-600">인쇄 대화상자에서 <b>방향: 가로</b> 선택 필수</span>
         </div>
       </div>
 
@@ -194,23 +193,14 @@ export function ReportView() {
                 <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>팀장</th>
                 <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>담당자</th>
                 <th className="border border-gray-400 p-0.5 text-left" style={{ fontSize: `${headerFont}px` }}>프로젝트명</th>
-                {printLabels.map((ml, mi) => (
-                  <th key={mi} colSpan={4} className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>
-                    {ml.yearShort} {ml.label}
-                  </th>
-                ))}
-              </tr>
-              <tr style={{ backgroundColor: '#4b5563', color: 'white' }}>
-                <th className="border border-gray-400" />
-                <th className="border border-gray-400" />
-                <th className="border border-gray-400" />
-                {printLabels.map((_, mi) =>
-                  [1,2,3,4].map(w => (
-                    <th key={`${mi}_${w}`} className="border border-gray-400 text-center" style={{ fontSize: `${Math.max(4.5, headerFont - 1)}px`, color: 'white' }}>
-                      {w}
+                {printLabels.map((ml, mi) => {
+                  const showYear = mi === 0 || (mi > 0 && ml.yearShort !== printLabels[mi - 1].yearShort)
+                  return (
+                    <th key={mi} colSpan={4} className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>
+                      {showYear ? `${ml.yearShort} ` : ''}{ml.label}
                     </th>
-                  ))
-                )}
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
