@@ -33,6 +33,8 @@ function buildPrintRow(
 
   const origins = weekStatuses
     .filter(ws => ws.colSpan !== 0)
+    // 텍스트 없는 origin은 empty 구간으로 흘려보내 머지되도록 제외 ('-'는 유지)
+    .filter(ws => ws.text !== '' && ws.text != null)
     .map(ws => ({ ...ws, abs: ws.monthIndex * 4 + ws.weekIndex }))
     .sort((a, b) => a.abs - b.abs)
 
