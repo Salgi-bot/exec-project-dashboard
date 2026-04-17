@@ -126,10 +126,10 @@ export function ReportView() {
   // 2페이지 고정용 가변 행높이 (세로 A4, 밴드 포함)
   // A4 세로 2장 tbody 가용 ≈ 2050px. 섹션 밴드 포함 총 행수로 분모.
   const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length + 1, 0)
-  const rawFont = totalRows > 0 ? 2050 / totalRows / 1.6 : 8
-  const bodyFont = Math.max(5.5, Math.min(8, rawFont))
-  const cellFont = Math.max(5, bodyFont - 0.5)
-  const headerFont = Math.max(6, Math.min(9, bodyFont + 0.5))
+  const rawFont = totalRows > 0 ? 2050 / totalRows / 1.6 : 9
+  const bodyFont = Math.max(7, Math.min(9, rawFont))
+  const cellFont = Math.max(6.5, bodyFont - 0.5)
+  const headerFont = Math.max(7.5, Math.min(10, bodyFont + 0.5))
 
   return (
     <div className="p-6">
@@ -224,30 +224,31 @@ export function ReportView() {
       <style>{`
         /* 공통 */
         .report-th, .report-td {
-          border: 1px solid #9ca3af;
+          border: 1px solid #6b7280;
           box-sizing: border-box;
           word-break: keep-all;
           overflow-wrap: break-word;
+          color: #000;
         }
         .exec-band { break-after: avoid; page-break-after: avoid; }
         .exec-band + tr { break-before: avoid; page-break-before: avoid; }
 
         /* 화면 보기용 (편안한 크기) */
         .report-title { font-size: 18px; }
-        .report-th { padding: 6px 8px; font-size: 13px; }
-        .report-project { padding: 6px 10px; font-size: 13px; }
-        .report-cell { padding: 6px 4px; font-size: 12px; }
-        .report-band td { padding: 6px 10px; font-size: 13px; background: #e5e7eb; }
+        .report-th { padding: 6px 8px; font-size: 13px; font-weight: 600; }
+        .report-project { padding: 6px 10px; font-size: 13px; font-weight: 500; }
+        .report-cell { padding: 6px 4px; font-size: 12px; font-weight: 500; }
+        .report-band td { padding: 6px 10px; font-size: 13px; background: #e5e7eb; font-weight: 700; }
         .report-row { line-height: 1.4; }
 
         @page { size: A4 portrait; margin: 10mm; }
 
-        /* 인쇄용 (압축) */
+        /* 인쇄용 */
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
           body * { visibility: hidden; }
           .print-area, .print-area * { visibility: visible; }
-          .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+          .print-area { position: absolute; left: 0; top: 0; width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; }
@@ -255,11 +256,11 @@ export function ReportView() {
           tr { page-break-inside: avoid; break-inside: avoid; }
 
           .report-title { font-size: 13px; }
-          .report-th { padding: 1px 2px; font-size: var(--print-header-font); }
-          .report-project { padding: 0 3px; font-size: var(--print-body-font); line-height: 1.1; }
-          .report-cell { padding: 0 1px; font-size: var(--print-cell-font); line-height: 1.1; }
-          .report-band td { padding: 0 5px; font-size: var(--print-body-font); line-height: 1.1; }
-          .report-row { line-height: 1.1; }
+          .report-th { padding: 2px 3px; font-size: var(--print-header-font); font-weight: 700; }
+          .report-project { padding: 1px 3px; font-size: var(--print-body-font); font-weight: 600; line-height: 1.2; }
+          .report-cell { padding: 1px 2px; font-size: var(--print-cell-font); font-weight: 500; line-height: 1.2; }
+          .report-band td { padding: 1px 5px; font-size: var(--print-body-font); line-height: 1.2; font-weight: 700; }
+          .report-row { line-height: 1.2; }
         }
       `}</style>
     </div>
