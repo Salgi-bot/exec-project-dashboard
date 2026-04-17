@@ -14,22 +14,23 @@ import type { StatusCategory, Executive, SheetPeriod } from '@/types/project.typ
 interface MetaEdit { id: string; projectName: string; client: string; executiveId: string }
 interface DupPanel { conflicts: Array<{ id: string; text: string }>; x: number; y: number }
 
+// 간트 상태 색상: CI 블루(진행중)·CI 그린(완료)·중성 회색만
 const STATUS_CELL_BG: Record<StatusCategory, string> = {
-  active:       '#dbeafe',
-  complete:     '#dcfce7',
-  pending:      '#fef9c3',
-  review:       '#f3e8ff',
-  construction: '#fed7aa',
-  inactive:     '#f1f5f9',
+  active:       '#e8f0f9',  // CI 블루 파스텔
+  complete:     '#f0f4e3',  // CI 그린 파스텔
+  pending:      '#f9fafb',
+  review:       '#f9fafb',
+  construction: '#f9fafb',
+  inactive:     '#f9fafb',
   empty:        '#ffffff',
 }
 const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
-  active:       '#1d4ed8',
-  complete:     '#15803d',
-  pending:      '#a16207',
-  review:       '#7e22ce',
-  construction: '#c2410c',
-  inactive:     '#94a3b8',
+  active:       '#2c609e',  // CI 블루 다크
+  complete:     '#556d1f',  // CI 그린 다크
+  pending:      '#4b5563',
+  review:       '#4b5563',
+  construction: '#4b5563',
+  inactive:     '#9ca3af',
   empty:        '#e2e8f0',
 }
 
@@ -231,9 +232,12 @@ export function GanttView() {
             if (!scrollRef.current) return
             scrollRef.current.scrollLeft = Math.max(0, CELL_W * 4 * Math.max(0, currentMonthIdx - 3))
           }}
-          className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="text-xs px-3 py-1.5 text-white rounded-lg transition-colors"
+          style={{ backgroundColor: 'var(--ci-blue)' }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue-dark)' }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue)' }}
         >
-          📍 현재 월 이동
+          현재 월 이동
         </button>
         <button
           onClick={() => { if (scrollRef.current) scrollRef.current.scrollLeft = 0 }}
@@ -241,23 +245,23 @@ export function GanttView() {
         >
           ◀ 시작 월로
         </button>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-gray-500">
           현재: {monthLabels[currentMonthIdx]?.yearShort} {monthLabels[currentMonthIdx]?.label}
           {currentMonthIdx === sheet.period.totalMonths - 1 && (
-            <span className="ml-1 text-orange-400">(시트 범위 밖)</span>
+            <span className="ml-1 text-gray-500">(시트 범위 밖)</span>
           )}
         </span>
         {duplicateConflicts.size > 0 && (
-          <span className="text-xs font-medium text-orange-500">
-            ⚠️ 유사 중복 {duplicateConflicts.size}건 — ⚠️ 클릭 시 중복 목록 확인 및 이동
+          <span className="text-xs font-medium text-gray-600">
+            유사 중복 {duplicateConflicts.size}건 — 클릭 시 목록 확인
           </span>
         )}
         {deletedProjectIds.length > 0 && (
           <button
             onClick={() => setShowDeleted(v => !v)}
-            className="text-xs px-2 py-1 bg-red-50 text-red-500 border border-red-200 rounded hover:bg-red-100"
+            className="text-xs px-2 py-1 bg-gray-100 text-gray-600 border border-gray-300 rounded hover:bg-gray-200"
           >
-            🗑 삭제된 항목 {deletedProjectIds.length}건 {showDeleted ? '▲' : '▼'}
+            삭제된 항목 {deletedProjectIds.length}건 {showDeleted ? '▲' : '▼'}
           </button>
         )}
         <span className="text-xs text-gray-300 ml-auto">셀 클릭: 단일 입력 | 드래그: 기간 입력</span>
@@ -267,44 +271,50 @@ export function GanttView() {
         <div style={{ minWidth: totalWidth + 'px', width: totalWidth + 'px' }}>
 
           {/* 헤더 1: 연도 */}
-          <div className="flex sticky top-0 z-20 bg-gray-900 text-white" style={{ height: ROW_H + 'px' }}>
-            <div className="shrink-0 bg-gray-900 sticky left-0 z-30 border-r border-gray-600"
+          <div className="flex sticky top-0 z-20 bg-slate-800 text-white" style={{ height: ROW_H + 'px' }}>
+            <div className="shrink-0 bg-slate-800 sticky left-0 z-30 border-r border-slate-600"
               style={{ width: NAME_W + ASSIGNEE_W + 'px' }} />
             {yearGroups.map((g, i) => (
               <div key={i}
-                className="flex items-center justify-center text-xs font-bold border-r border-gray-600 bg-gray-800"
+                className="flex items-center justify-center text-xs font-bold border-r border-slate-600 bg-slate-700"
                 style={{ width: CELL_W * 4 * g.count + 'px' }}
               >{g.yearShort}</div>
             ))}
           </div>
 
           {/* 헤더 2: 월 */}
-          <div className="flex sticky z-20 bg-gray-800 text-white" style={{ top: ROW_H + 'px', height: ROW_H + 'px' }}>
-            <div className="shrink-0 flex items-center px-2 text-xs font-semibold border-r border-gray-600 bg-gray-800 sticky left-0 z-30"
+          <div className="flex sticky z-20 bg-slate-700 text-white" style={{ top: ROW_H + 'px', height: ROW_H + 'px' }}>
+            <div className="shrink-0 flex items-center px-2 text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky left-0 z-30"
               style={{ width: NAME_W + 'px' }}>
               프로젝트 / 담당임원
             </div>
-            <div className="shrink-0 flex items-center justify-center text-xs font-semibold border-r border-gray-600 bg-gray-800 sticky z-30"
+            <div className="shrink-0 flex items-center justify-center text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky z-30"
               style={{ width: ASSIGNEE_W + 'px', left: NAME_W + 'px' }}>
               담당자
             </div>
             {monthLabels.map((ml, mi) => (
               <div key={mi}
-                className={`flex items-center justify-center text-xs font-semibold border-r border-gray-600 ${mi === currentMonthIdx ? 'bg-blue-700' : ''}`}
-                style={{ width: CELL_W * 4 + 'px' }}
+                className="flex items-center justify-center text-xs font-semibold border-r border-slate-600"
+                style={{
+                  width: CELL_W * 4 + 'px',
+                  backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue)' : undefined,
+                }}
               >{ml.label}</div>
             ))}
           </div>
 
           {/* 헤더 3: 주차 */}
-          <div className="flex sticky z-20 bg-gray-700 text-white" style={{ top: ROW_H * 2 + 'px', height: ROW_H - 4 + 'px' }}>
-            <div className="shrink-0 border-r border-gray-600 bg-gray-700 sticky left-0 z-30"
+          <div className="flex sticky z-20 bg-slate-600 text-white" style={{ top: ROW_H * 2 + 'px', height: ROW_H - 4 + 'px' }}>
+            <div className="shrink-0 border-r border-slate-500 bg-slate-600 sticky left-0 z-30"
               style={{ width: NAME_W + ASSIGNEE_W + 'px' }} />
             {monthLabels.map((_, mi) =>
               [1, 2, 3, 4].map(w => (
                 <div key={`${mi}_${w}`}
-                  className={`flex items-center justify-center text-xs border-r border-gray-600 text-gray-400 ${mi === currentMonthIdx ? 'bg-blue-800' : ''}`}
-                  style={{ width: CELL_W + 'px' }}
+                  className="flex items-center justify-center text-xs border-r border-slate-500 text-slate-300"
+                  style={{
+                    width: CELL_W + 'px',
+                    backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue-dark)' : undefined,
+                  }}
                 >{w}</div>
               ))
             )}
@@ -337,7 +347,7 @@ export function GanttView() {
                     >{isCollapsed ? '▶' : '▼'}</button>
                     <span className="font-bold text-gray-700 text-sm">{exec.name}</span>
                     <span className="text-xs text-gray-500">{exec.title}</span>
-                    <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-1.5 font-medium">{execProjects.length}</span>
+                    <span className="text-xs bg-gray-200 text-gray-700 rounded-full px-1.5 font-medium">{execProjects.length}</span>
                     <div className="flex flex-col">
                       <button onClick={() => moveExec(exec.id, -1)} disabled={execIdx === 0}
                         className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none">▲</button>
@@ -345,13 +355,18 @@ export function GanttView() {
                         className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none">▼</button>
                     </div>
                     <button onClick={() => setAddExec(exec)}
-                      className="ml-auto text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 hover:bg-green-200 font-medium">
+                      className="ml-auto text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded px-1.5 py-0.5 hover:bg-gray-200 font-medium">
                       + 추가
                     </button>
                   </div>
                   {monthLabels.map((_, mi) => (
-                    <div key={mi} style={{ width: CELL_W * 4 + 'px' }}
-                      className={mi === currentMonthIdx ? 'h-full bg-blue-50' : ''} />
+                    <div key={mi}
+                      className={mi === currentMonthIdx ? 'h-full' : ''}
+                      style={{
+                        width: CELL_W * 4 + 'px',
+                        backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue-light)' : undefined,
+                      }}
+                    />
                   ))}
                 </div>
 
@@ -367,24 +382,24 @@ export function GanttView() {
                       key={project.id}
                       data-project-id={project.id}
                       className={`flex border-b border-gray-100 transition-colors ${
-                        isHighlighted ? 'bg-yellow-100' :
-                        isDup ? 'bg-orange-50/40' : ''
+                        isHighlighted ? 'bg-gray-100' :
+                        isDup ? 'bg-gray-50' : ''
                       }`}
                       style={{ height: ROW_H + 'px' }}
                     >
                       {/* 프로젝트명 - sticky left 0 */}
                       <div
                         className={`name-cell shrink-0 flex items-center px-2 border-r border-gray-200 sticky left-0 z-10 ${
-                          isDup ? 'bg-orange-50' : isHighlighted ? 'bg-yellow-100' : 'bg-white hover:bg-blue-50/40'
+                          isDup ? 'bg-gray-50' : isHighlighted ? 'bg-gray-100' : 'bg-white hover:bg-gray-50'
                         }`}
                         style={{ width: NAME_W + 'px' }}
                       >
                         {/* 순서 ▲▼ */}
                         <div className="row-actions flex flex-col mr-1 shrink-0">
                           <button onClick={() => reorderProject(project.id, -1, siblingIds)} disabled={projIdx === 0}
-                            className="text-gray-400 hover:text-blue-600 disabled:opacity-20 text-xs leading-none" title="위로">▲</button>
+                            className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none" title="위로">▲</button>
                           <button onClick={() => reorderProject(project.id, 1, siblingIds)} disabled={projIdx === execProjects.length - 1}
-                            className="text-gray-400 hover:text-blue-600 disabled:opacity-20 text-xs leading-none" title="아래로">▼</button>
+                            className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs leading-none" title="아래로">▼</button>
                         </div>
 
                         {/* 프로젝트명 + 발주처 */}
@@ -392,20 +407,20 @@ export function GanttView() {
                           <div className="flex items-center gap-1">
                             {isDup && (
                               <button
-                                className="text-orange-500 shrink-0 text-xs leading-none hover:scale-125 transition-transform"
+                                className="text-gray-500 shrink-0 text-xs leading-none hover:scale-125 transition-transform"
                                 title="클릭: 중복 프로젝트 확인"
                                 onClick={e => {
                                   e.stopPropagation()
                                   setDupPanel({ conflicts: dupConflicts!, x: e.clientX, y: e.clientY })
                                 }}
-                              >⚠️</button>
+                              >⚠</button>
                             )}
-                            <p className={`text-xs font-medium truncate ${isDup ? 'text-orange-700' : 'text-gray-700'}`}>
+                            <p className="text-xs font-medium truncate text-gray-700">
                               {project.projectName}
                             </p>
                           </div>
                           {project.client && (
-                            <p className={`text-xs truncate ${isDup ? 'text-orange-400' : 'text-gray-400'}`}>
+                            <p className="text-xs truncate text-gray-400">
                               {project.client}
                             </p>
                           )}
@@ -418,20 +433,20 @@ export function GanttView() {
                               e.stopPropagation()
                               setEditingMeta({ id: project.id, projectName: project.projectName, client: project.client || '', executiveId: project.executiveId })
                             }}
-                            className="text-gray-400 hover:text-blue-600 text-xs px-0.5"
+                            className="text-gray-400 hover:text-gray-700 text-xs px-0.5"
                             title="수정"
-                          >✏️</button>
+                          >✎</button>
                           <button
                             onClick={e => { e.stopPropagation(); handleDelete(project.id, project.projectName) }}
-                            className="text-gray-400 hover:text-red-500 text-xs px-0.5"
+                            className="text-gray-400 hover:text-gray-700 text-xs px-0.5"
                             title="삭제"
-                          >🗑</button>
+                          >✕</button>
                         </div>
                       </div>
 
                       {/* 담당자 컬럼 - sticky left NAME_W */}
                       <div
-                        className={`shrink-0 flex items-center justify-center border-r border-gray-200 sticky z-10 ${isDup ? 'bg-orange-50' : 'bg-white'}`}
+                        className={`shrink-0 flex items-center justify-center border-r border-gray-200 sticky z-10 ${isDup ? 'bg-gray-50' : 'bg-white'}`}
                         style={{ width: ASSIGNEE_W + 'px', left: NAME_W + 'px' }}
                       >
                         {editingAssigneeId === project.id ? (
@@ -447,13 +462,13 @@ export function GanttView() {
                               if (e.key === 'Enter') { setAssignee(project.id, assigneeInput || assignee); setEditingAssigneeId(null) }
                               if (e.key === 'Escape') setEditingAssigneeId(null)
                             }}
-                            className="w-full border border-blue-300 rounded px-1 text-center focus:outline-none"
+                            className="w-full border border-gray-300 rounded px-1 text-center focus:outline-none"
                             style={{ fontSize: '10px' }}
                           />
                         ) : (
                           <span
-                            className="text-xs text-blue-600 cursor-pointer hover:underline truncate px-1"
-                            style={{ fontSize: '10px' }}
+                            className="text-xs cursor-pointer hover:underline truncate px-1"
+                            style={{ fontSize: '10px', color: 'var(--ci-blue)' }}
                             title="클릭하여 담당자 수정"
                             onClick={() => { setEditingAssigneeId(project.id); setAssigneeInput(assignee) }}
                           >
@@ -501,9 +516,9 @@ export function GanttView() {
                               width: CELL_W * span + 'px',
                               minWidth: CELL_W * span + 'px',
                               height: ROW_H + 'px',
-                              backgroundColor: isDragHL ? '#bfdbfe'
+                              backgroundColor: isDragHL ? '#d1d9e6'
                                 : ws.category !== 'empty' ? STATUS_CELL_BG[ws.category]
-                                : isCurrentMonth ? '#eff6ff' : '#ffffff',
+                                : isCurrentMonth ? '#e8f0f9' : '#ffffff',
                               color: STATUS_CELL_TEXT[ws.category],
                               fontSize: '9px',
                               overflow: 'hidden',
@@ -537,8 +552,8 @@ export function GanttView() {
 
       {/* 삭제된 프로젝트 복구 패널 */}
       {showDeleted && deletedProjectIds.length > 0 && (
-        <div className="no-print border-t border-red-200 bg-red-50 p-3 max-h-48 overflow-y-auto">
-          <p className="text-xs font-semibold text-red-700 mb-2">🗑 삭제된 프로젝트 — 클릭하면 복구됩니다</p>
+        <div className="no-print border-t border-gray-200 bg-gray-50 p-3 max-h-48 overflow-y-auto">
+          <p className="text-xs font-semibold text-gray-700 mb-2">삭제된 프로젝트 — 클릭하면 복구됩니다</p>
           <div className="flex flex-wrap gap-2">
             {deletedProjectIds.map(pid => {
               const p = sheet.projects.find(x => x.id === pid)
@@ -548,7 +563,7 @@ export function GanttView() {
                 <button
                   key={pid}
                   onClick={() => restoreProject(pid)}
-                  className="text-xs bg-white border border-red-300 rounded-lg px-2 py-1 hover:bg-red-100 text-red-700"
+                  className="text-xs bg-white border border-gray-300 rounded-lg px-2 py-1 hover:bg-gray-100 text-gray-700"
                   title="클릭하여 복구"
                 >
                   ↩ {p.projectName}{p.client ? ` (${p.client})` : ''} — {exec?.name}
@@ -614,7 +629,10 @@ export function GanttView() {
               <button
                 onClick={saveMetaEdit}
                 disabled={!editingMeta.projectName.trim()}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40"
+                className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40 transition-colors"
+                style={{ backgroundColor: 'var(--ci-blue)' }}
+                onMouseEnter={e => { if (editingMeta.projectName.trim()) e.currentTarget.style.backgroundColor = 'var(--ci-blue-dark)' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue)' }}
               >
                 저장
               </button>
@@ -629,20 +647,20 @@ export function GanttView() {
           {/* 배경 클릭으로 닫기 */}
           <div className="fixed inset-0 z-40" onClick={() => setDupPanel(null)} />
           <div
-            className="fixed z-50 bg-white border border-orange-300 rounded-xl shadow-2xl p-3 min-w-[220px] max-w-xs"
+            className="fixed z-50 bg-white border border-gray-300 rounded-xl shadow-2xl p-3 min-w-[220px] max-w-xs"
             style={{ left: Math.min(dupPanel.x, window.innerWidth - 260), top: Math.min(dupPanel.y + 8, window.innerHeight - 200) }}
           >
-            <p className="text-xs font-semibold text-orange-700 mb-2 flex items-center gap-1">
-              ⚠️ 유사 중복 프로젝트 — 클릭하면 이동
+            <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+              유사 중복 프로젝트 — 클릭하면 이동
             </p>
             <div className="space-y-1">
               {dupPanel.conflicts.map((c, i) => (
                 <button
                   key={i}
                   onClick={() => navigateToProject(c.id)}
-                  className="w-full text-left text-xs text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg px-2 py-1.5 border border-orange-200 transition-colors"
+                  className="w-full text-left text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-2 py-1.5 border border-gray-200 transition-colors"
                 >
-                  👉 {c.text}
+                  {c.text}
                 </button>
               ))}
             </div>
