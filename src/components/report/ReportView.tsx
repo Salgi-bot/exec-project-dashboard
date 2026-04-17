@@ -145,16 +145,18 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 2페이지 꽉 채우기: tbody 가용 = 506mm(2장) - 이를 총 행수로 균등 분배
-  // A4 세로: 297mm - margin 10mm×2 - banner 14mm - thead 10mm = 253mm/page
+  // 2페이지 꽉 채우기
+  // A4 세로: 297 - 20margin = 277mm/page. 배너 10mm + thead 8mm = 18mm 차감
+  // 페이지1 tbody = 259mm, 페이지2 tbody = 269mm (배너 없음, thead 반복)
+  // 총 2페이지 tbody ≈ 528mm
   const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length + 1, 0)
-  const tbodyMm = 506   // 2페이지 가용 총 높이
+  const tbodyMm = 528
   const rowHeightMm = totalRows > 0 ? tbodyMm / totalRows : 8
-  // 폰트는 행 높이에 맞게 조정 (행당 최소 1줄 여유)
-  const rawFont = rowHeightMm * 2.3   // 1mm ≈ 3.78px, 70% 활용
-  const bodyFont = Math.max(7, Math.min(11, rawFont))
-  const cellFont = Math.max(6.5, bodyFont - 0.5)
-  const headerFont = Math.max(8, Math.min(12, bodyFont + 1))
+  // 행 안에 2줄까지 들어가도록 폰트 제한 (1mm ≈ 3.78px, 행당 2줄 = 폰트×2.4 = 5mm 이하)
+  const maxFontPx = Math.floor((rowHeightMm * 3.78) / 2.4)
+  const bodyFont = Math.max(6.5, Math.min(9, maxFontPx))
+  const cellFont = Math.max(6, bodyFont - 0.5)
+  const headerFont = Math.max(7, Math.min(10, bodyFont + 1))
 
   return (
     <div className="p-6">
@@ -276,12 +278,18 @@ export function ReportView() {
         /* 인쇄용 */
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
-          body * { visibility: hidden; }
-          .print-area, .print-area * { visibility: visible; }
-          .print-area { position: absolute; left: 0; top: 0; width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+          /* 레이아웃 플랫하게 + 인쇄 외 영역 완전 숨김 (position:absolute 대신 display:none) */
+          .app-shell { display: block !important; height: auto !important; overflow: visible !important; }
+          .app-shell > aside { display: none !important; }
+          .app-main { display: block !important; overflow: visible !important; }
+          .app-main > .no-print { display: none !important; }
+          main { display: block !important; overflow: visible !important; height: auto !important; background: white !important; }
           .no-print { display: none !important; }
+
+          .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
-          table { page-break-inside: auto; }
+          table { page-break-inside: auto; width: 100% !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; break-inside: avoid; }
 
