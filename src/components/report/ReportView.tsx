@@ -152,14 +152,19 @@ export function ReportView() {
         </div>
       </div>
 
-      <div ref={printRef} className="bg-white print-area">
+      <div ref={printRef} className="bg-white print-area" style={{
+        // 인쇄 시만 적용될 CSS 변수 (화면에서는 .report-* 기본값 사용)
+        ['--print-body-font' as string]: `${bodyFont}px`,
+        ['--print-cell-font' as string]: `${cellFont}px`,
+        ['--print-header-font' as string]: `${headerFont}px`,
+      }}>
         {/* 제목만 */}
         <div className="px-2 py-1 border-b border-gray-400 print-no-break">
-          <h1 className="font-bold text-gray-800" style={{ fontSize: '13px' }}>■ 임원회의 PROJECT 진행일정표</h1>
+          <h1 className="font-bold text-gray-800 report-title">■ 임원회의 PROJECT 진행일정표</h1>
         </div>
 
         <div className="px-2 pt-1">
-          <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: `${bodyFont}px` }}>
+          <table className="w-full border-collapse report-table" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '34%' }} />  {/* 프로젝트명 (넓게) */}
               {printLabels.map((_, mi) =>
@@ -168,11 +173,11 @@ export function ReportView() {
             </colgroup>
             <thead>
               <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                <th className="report-th text-left" style={{ fontSize: `${headerFont}px` }}>프로젝트명</th>
+                <th className="report-th text-left">프로젝트명</th>
                 {printLabels.map((ml, mi) => {
                   const showYear = mi === 0 || (mi > 0 && ml.yearShort !== printLabels[mi - 1].yearShort)
                   return (
-                    <th key={mi} colSpan={4} className="report-th text-center" style={{ fontSize: `${headerFont}px` }}>
+                    <th key={mi} colSpan={4} className="report-th text-center">
                       {showYear ? `${ml.yearShort} ` : ''}{ml.label}
                     </th>
                   )
@@ -184,44 +189,21 @@ export function ReportView() {
                 if (!exec) return null
                 const totalCols = 1 + printMonths * 4
                 return [
-                  /* 임원 섹션 밴드 (최소 높이) */
                   <tr key={`band-${exec.id}`} className="exec-band">
-                    <td colSpan={totalCols}
-                      className="report-td font-bold"
-                      style={{
-                        fontSize: `${bodyFont}px`,
-                        backgroundColor: '#e5e7eb',
-                        padding: '0 5px',
-                        lineHeight: 1.1,
-                      }}>
+                    <td colSpan={totalCols} className="report-td report-band font-bold">
                       ■ {exec.name} ({projects.length}건)
                     </td>
                   </tr>,
-                  /* 프로젝트 행 (행 높이 최소화) */
                   ...projects.map(project => {
                     const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
                     return (
-                      <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.1 }}>
-                        <td className="report-td align-middle"
-                          style={{
-                            fontSize: `${bodyFont}px`,
-                            padding: '0 3px',
-                            whiteSpace: 'normal',
-                            wordBreak: 'keep-all',
-                            overflowWrap: 'break-word',
-                          }}>
+                      <tr key={project.id} className="print-no-break report-row">
+                        <td className="report-td report-project align-middle">
                           {project.projectName}
                         </td>
                         {printCells.map((cell, ci) => (
                           <td key={ci} colSpan={cell.colSpan}
-                            className="report-td text-center align-middle"
-                            style={{
-                              fontSize: `${cellFont}px`,
-                              padding: '0 1px',
-                              whiteSpace: 'normal',
-                              wordBreak: 'keep-all',
-                              overflowWrap: 'break-word',
-                            }}>
+                            className="report-td report-cell text-center align-middle">
                             {cell.text && cell.text !== '-' ? cell.text
                               : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
                           </td>
@@ -237,15 +219,27 @@ export function ReportView() {
       </div>
 
       <style>{`
+        /* 공통 */
         .report-th, .report-td {
           border: 1px solid #9ca3af;
           box-sizing: border-box;
+          word-break: keep-all;
+          overflow-wrap: break-word;
         }
-        .report-th { padding: 2px; }
         .exec-band { break-after: avoid; page-break-after: avoid; }
         .exec-band + tr { break-before: avoid; page-break-before: avoid; }
 
+        /* 화면 보기용 (편안한 크기) */
+        .report-title { font-size: 18px; }
+        .report-th { padding: 6px 8px; font-size: 13px; }
+        .report-project { padding: 6px 10px; font-size: 13px; }
+        .report-cell { padding: 6px 4px; font-size: 12px; }
+        .report-band td { padding: 6px 10px; font-size: 13px; background: #e5e7eb; }
+        .report-row { line-height: 1.4; }
+
         @page { size: A4 portrait; margin: 10mm; }
+
+        /* 인쇄용 (압축) */
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
           body * { visibility: hidden; }
@@ -255,8 +249,14 @@ export function ReportView() {
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; }
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
           tr { page-break-inside: avoid; break-inside: avoid; }
+
+          .report-title { font-size: 13px; }
+          .report-th { padding: 1px 2px; font-size: var(--print-header-font); }
+          .report-project { padding: 0 3px; font-size: var(--print-body-font); line-height: 1.1; }
+          .report-cell { padding: 0 1px; font-size: var(--print-cell-font); line-height: 1.1; }
+          .report-band td { padding: 0 5px; font-size: var(--print-body-font); line-height: 1.1; }
+          .report-row { line-height: 1.1; }
         }
       `}</style>
     </div>
