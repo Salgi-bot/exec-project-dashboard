@@ -1,7 +1,26 @@
 import { supabase } from './supabase'
 import { useAppStore } from '@/store/appStore'
+import { EXECUTIVE_MAP } from '@/constants/executives'
 
 const STATE_ID = 'main'
+
+// 저장된 sheet 내 executive 정보를 최신 상수와 동기화 (직함 변경 반영)
+function syncExecutiveTitles(state: ReturnType<typeof useAppStore.getState>) {
+  if (!state.sheets) return state
+  const sheets = { ...state.sheets }
+  for (const key of Object.keys(sheets)) {
+    const sheet = sheets[key as keyof typeof sheets]
+    if (!sheet?.executives) continue
+    sheets[key as keyof typeof sheets] = {
+      ...sheet,
+      executives: sheet.executives.map(e => {
+        const latest = EXECUTIVE_MAP[e.id]
+        return latest ? { ...e, title: latest.title, order: latest.order } : e
+      }),
+    }
+  }
+  return { ...state, sheets }
+}
 
 function getPersistedState() {
   const s = useAppStore.getState()
@@ -27,10 +46,13 @@ export async function initCloudSync(): Promise<void> {
       .single()
 
     if (data?.data) {
-      useAppStore.setState(data.data)
+      useAppStore.setState(syncExecutiveTitles(data.data))
+    } else {
+      // 로컬 상태도 동기화
+      useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
     }
   } catch {
-    // 네트워크 오류 시 localStorage 상태 유지
+    useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
   }
 
   // 상태 변경 시 Supabase에 저장 (1.5초 디바운스)

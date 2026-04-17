@@ -9,8 +9,8 @@ export const EXECUTIVES: Executive[] = [
   { id: '최보령', name: '최보령', title: '전무', order: 5 },
   { id: '오선미', name: '오선미', title: '상무', order: 6 },
   { id: '김대영', name: '김대영', title: '전무', order: 7 },
-  { id: '이원규', name: '이원규', title: '상무', order: 8 },
-  { id: '백창희', name: '백창희', title: '상무', order: 9 },
+  { id: '이원규', name: '이원규', title: '전무', order: 8 },
+  { id: '백창희', name: '백창희', title: '전무', order: 9 },
 ]
 
 export const EXECUTIVE_MAP: Record<string, Executive> = Object.fromEntries(
