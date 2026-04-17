@@ -7,6 +7,26 @@ import { classifyStatus } from '@/utils/statusClassifier'
 import { generatePDF } from '@/utils/pdfExporter'
 import type { StatusCategory, WeekStatus, SheetPeriod } from '@/types/project.types'
 
+// 간트와 동일한 상태 셀 색상
+const STATUS_CELL_BG: Record<StatusCategory, string> = {
+  active:       '#e8f0f9',
+  complete:     '#f0f4e3',
+  pending:      '#f9fafb',
+  review:       '#f9fafb',
+  construction: '#f9fafb',
+  inactive:     '#f9fafb',
+  empty:        '#ffffff',
+}
+const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
+  active:       '#2c609e',
+  complete:     '#556d1f',
+  pending:      '#000000',
+  review:       '#000000',
+  construction: '#000000',
+  inactive:     '#6b7280',
+  empty:        '#000000',
+}
+
 function getCurrentMonthIndex(period: SheetPeriod): number {
   const now = new Date()
   const nowYear = now.getFullYear()
@@ -125,13 +145,16 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 2페이지 고정용 가변 행높이 (세로 A4, 밴드 포함)
-  // A4 세로 2장 tbody 가용 ≈ 2050px. 섹션 밴드 포함 총 행수로 분모.
+  // 2페이지 꽉 채우기: tbody 가용 = 506mm(2장) - 이를 총 행수로 균등 분배
+  // A4 세로: 297mm - margin 10mm×2 - banner 14mm - thead 10mm = 253mm/page
   const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length + 1, 0)
-  const rawFont = totalRows > 0 ? 2050 / totalRows / 1.6 : 9
-  const bodyFont = Math.max(7, Math.min(9, rawFont))
+  const tbodyMm = 506   // 2페이지 가용 총 높이
+  const rowHeightMm = totalRows > 0 ? tbodyMm / totalRows : 8
+  // 폰트는 행 높이에 맞게 조정 (행당 최소 1줄 여유)
+  const rawFont = rowHeightMm * 2.3   // 1mm ≈ 3.78px, 70% 활용
+  const bodyFont = Math.max(7, Math.min(11, rawFont))
   const cellFont = Math.max(6.5, bodyFont - 0.5)
-  const headerFont = Math.max(7.5, Math.min(10, bodyFont + 0.5))
+  const headerFont = Math.max(8, Math.min(12, bodyFont + 1))
 
   return (
     <div className="p-6">
@@ -162,6 +185,7 @@ export function ReportView() {
         ['--print-body-font' as string]: `${bodyFont}px`,
         ['--print-cell-font' as string]: `${cellFont}px`,
         ['--print-header-font' as string]: `${headerFont}px`,
+        ['--print-row-h' as string]: `${rowHeightMm}mm`,
       }}>
         {/* 제목만 */}
         <div className="px-2 py-1 border-b border-gray-400 print-no-break">
@@ -208,7 +232,11 @@ export function ReportView() {
                         </td>
                         {printCells.map((cell, ci) => (
                           <td key={ci} colSpan={cell.colSpan}
-                            className="report-td report-cell text-center align-middle">
+                            className="report-td report-cell text-center align-middle"
+                            style={{
+                              backgroundColor: STATUS_CELL_BG[cell.category],
+                              color: STATUS_CELL_TEXT[cell.category],
+                            }}>
                             {cell.text && cell.text !== '-' ? cell.text
                               : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
                           </td>
@@ -262,7 +290,8 @@ export function ReportView() {
           .report-project { padding: 1px 3px; font-size: var(--print-body-font); font-weight: 600; line-height: 1.2; }
           .report-cell { padding: 1px 2px; font-size: var(--print-cell-font); font-weight: 500; line-height: 1.2; }
           .report-band td { padding: 1px 5px; font-size: var(--print-body-font); line-height: 1.2; font-weight: 700; }
-          .report-row { line-height: 1.2; }
+          .report-row { line-height: 1.2; height: var(--print-row-h); }
+          .exec-band { height: var(--print-row-h); }
         }
       `}</style>
     </div>
