@@ -122,14 +122,32 @@ export function ReportView() {
     return ordered.filter(Boolean)
   }, [sheet.executives, execOrder, grouped])
 
-  // 2페이지 고정용 가변 행높이 계산
+  // rowspan 데이터 사전 계산 (팀장: 임원당 1, 담당자: 연속 같은 이름 묶음)
+  const execRowsData = useMemo(() => {
+    return orderedExecs.map(exec => {
+      if (!exec) return null
+      const projects = grouped.get(exec.id) ?? []
+      const assignees = projects.map(p => assigneeOverrides[p.id] || exec.name)
+      const runs: { startIdx: number; span: number; assignee: string }[] = []
+      let i = 0
+      while (i < assignees.length) {
+        let j = i
+        while (j < assignees.length && assignees[j] === assignees[i]) j++
+        runs.push({ startIdx: i, span: j - i, assignee: assignees[i] })
+        i = j
+      }
+      return { exec, projects, assignees, runs }
+    }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects; assignees: string[]; runs: { startIdx: number; span: number; assignee: string }[] }[]
+  }, [orderedExecs, grouped, assigneeOverrides])
+
+  // 2페이지 고정용 가변 행높이 (임원헤더 행 제거 후)
   // A4 가로 2장 = (210-16)mm × 2 = 388mm. 배너 ~14mm + thead×2 ~22mm = 36mm 소요.
   // tbody 가용 = 352mm = ~1331px(@96dpi). 행 자연높이 ≈ font + 1.5px.
-  const totalRows = orderedExecs.reduce((sum, e) => sum + 1 + (grouped.get(e!.id)?.length ?? 0), 0)
+  const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length, 0)
   const rawFont = totalRows > 0 ? 1331 / totalRows - 1.5 : 9
-  const bodyFont = Math.max(4.5, Math.min(8, rawFont))
+  const bodyFont = Math.max(4.5, Math.min(9, rawFont))
   const cellFont = Math.max(4, bodyFont - 0.5)
-  const headerFont = Math.max(5, Math.min(8, bodyFont))
+  const headerFont = Math.max(5, Math.min(9, bodyFont))
 
   return (
     <div className="p-6">
@@ -140,13 +158,16 @@ export function ReportView() {
             {sheet.period.label} &nbsp;|&nbsp; 출력 범위: {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label} ({printMonths}개월)
           </p>
         </div>
-        <button
-          onClick={handlePDF}
-          disabled={generating}
-          className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-        >
-          {generating ? '준비 중...' : '🖨️ 인쇄 / PDF 저장'}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={handlePDF}
+            disabled={generating}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+          >
+            {generating ? '준비 중...' : '🖨️ 인쇄 / PDF 저장'}
+          </button>
+          <span className="text-xs text-orange-600">⚠️ 인쇄 대화상자에서 <b>방향: 가로</b> 선택 필수</span>
+        </div>
       </div>
 
       <div ref={printRef} className="bg-white print-area">
@@ -193,57 +214,60 @@ export function ReportView() {
               </tr>
             </thead>
             <tbody>
-              {orderedExecs.map(exec => {
+              {execRowsData.map(({ exec, projects, runs }) => {
                 if (!exec) return null
-                const execProjects = grouped.get(exec.id) ?? []
                 const color = EXECUTIVE_COLORS[exec.name] ?? { bg: '#f9fafb', header: '#374151', text: '#374151' }
-
-                return [
-                  /* 임원 섹션 헤더 */
-                  <tr key={`header-${exec.id}`} style={{ backgroundColor: color.header }} className="print-section-header">
-                    <td colSpan={3 + printMonths * 4}
-                      className="border border-gray-300 px-1 font-bold"
-                      style={{ color: 'white', fontSize: `${bodyFont}px`, lineHeight: 1.1 }}>
-                      ▶ {exec.name} {exec.title} ({execProjects.length}건)
-                    </td>
-                  </tr>,
-                  /* 프로젝트 행 - 단일 라인, ellipsis */
-                  ...execProjects.map((project, pi) => {
-                    const assignee = assigneeOverrides[project.id] || exec.name
-                    const assigneeText = assignee.split(',').map(s => s.trim()).filter(Boolean).join(', ')
-                    const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
-                    return (
-                      <tr key={project.id}
-                        style={{ backgroundColor: pi % 2 === 0 ? color.bg : '#ffffff', lineHeight: 1.1 }}
-                        className="print-no-break">
-                        <td className="border border-gray-300 text-center align-middle" style={{ fontSize: `${bodyFont}px`, padding: '0 2px' }}>
-                          <span className="font-medium" style={{ color: color.header }}>{exec.name}</span>
+                return projects.map((project, pi) => {
+                  const isFirstInExec = pi === 0
+                  const run = runs.find(r => pi >= r.startIdx && pi < r.startIdx + r.span)!
+                  const isFirstInAssignee = pi === run.startIdx
+                  const assigneeText = run.assignee.split(',').map(s => s.trim()).filter(Boolean).join(', ')
+                  const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
+                  return (
+                    <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.15 }}>
+                      {isFirstInExec && (
+                        <td rowSpan={projects.length}
+                          className="border border-gray-400 text-center align-middle font-bold"
+                          style={{
+                            backgroundColor: color.header,
+                            color: 'white',
+                            fontSize: `${bodyFont}px`,
+                            padding: '2px',
+                            wordBreak: 'keep-all',
+                          }}>
+                          {exec.name}<br/>
+                          <span style={{ fontSize: `${Math.max(4, bodyFont - 1)}px`, fontWeight: 'normal', opacity: 0.85 }}>{exec.title}</span><br/>
+                          <span style={{ fontSize: `${Math.max(4, bodyFont - 1)}px`, fontWeight: 'normal', opacity: 0.85 }}>({projects.length}건)</span>
                         </td>
-                        <td className="border border-gray-300 text-center align-middle" style={{ fontSize: `${bodyFont}px`, color: color.text, padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      )}
+                      {isFirstInAssignee && (
+                        <td rowSpan={run.span}
+                          className="border border-gray-300 text-center align-middle"
+                          style={{ fontSize: `${bodyFont}px`, padding: '0 2px', wordBreak: 'keep-all' }}>
                           {assigneeText}
                         </td>
-                        <td className="border border-gray-300 align-middle font-medium" style={{ fontSize: `${bodyFont}px`, padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={project.projectName}>
-                          {project.projectName}
+                      )}
+                      <td className="border border-gray-300 align-middle font-medium" style={{ fontSize: `${bodyFont}px`, padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={project.projectName}>
+                        {project.projectName}
+                      </td>
+                      {printCells.map((cell, ci) => (
+                        <td key={ci} colSpan={cell.colSpan}
+                          className="week-cell border border-gray-200 text-center align-middle"
+                          style={{
+                            backgroundColor: STATUS_BG[cell.category],
+                            fontSize: `${cellFont}px`,
+                            padding: '0 1px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}>
+                          {cell.text && cell.text !== '-' ? cell.text
+                            : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
                         </td>
-                        {printCells.map((cell, ci) => (
-                          <td key={ci} colSpan={cell.colSpan}
-                            className="week-cell border border-gray-200 text-center align-middle"
-                            style={{
-                              backgroundColor: STATUS_BG[cell.category],
-                              fontSize: `${cellFont}px`,
-                              padding: '0 1px',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}>
-                            {cell.text && cell.text !== '-' ? cell.text
-                              : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
-                          </td>
-                        ))}
-                      </tr>
-                    )
-                  })
-                ]
+                      ))}
+                    </tr>
+                  )
+                })
               })}
             </tbody>
           </table>
@@ -251,8 +275,8 @@ export function ReportView() {
       </div>
 
       <style>{`
+        @page { size: A4 landscape; margin: 8mm; }
         @media print {
-          @page { size: A4 landscape; margin: 8mm; }
           html, body { margin: 0; padding: 0; background: white; }
           body * { visibility: hidden; }
           .print-area, .print-area * { visibility: visible; }
