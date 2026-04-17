@@ -4,19 +4,8 @@ import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { getMonthLabels } from '@/constants/periods'
 import { classifyStatus } from '@/utils/statusClassifier'
-import { EXECUTIVE_COLORS } from '@/constants/executives'
 import { generatePDF } from '@/utils/pdfExporter'
 import type { StatusCategory, WeekStatus, SheetPeriod } from '@/types/project.types'
-
-const STATUS_BG: Record<StatusCategory, string> = {
-  active:       '#dbeafe',
-  complete:     '#dcfce7',
-  pending:      '#fef9c3',
-  review:       '#f3e8ff',
-  construction: '#fed7aa',
-  inactive:     '#f8fafc',
-  empty:        '#ffffff',
-}
 
 function getCurrentMonthIndex(period: SheetPeriod): number {
   const now = new Date()
@@ -165,7 +154,7 @@ export function ReportView() {
           >
             {generating ? '준비 중...' : '인쇄 / PDF 저장'}
           </button>
-          <span className="text-xs text-orange-600">인쇄 대화상자에서 <b>방향: 가로</b> 선택 필수</span>
+          <span className="text-xs text-gray-500">인쇄 대화상자에서 <b>방향: 세로</b> 선택</span>
         </div>
       </div>
 
@@ -189,7 +178,7 @@ export function ReportView() {
               )}
             </colgroup>
             <thead>
-              <tr style={{ backgroundColor: '#374151', color: 'white' }}>
+              <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
                 <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>팀장</th>
                 <th className="border border-gray-400 p-0.5 text-center" style={{ fontSize: `${headerFont}px` }}>담당자</th>
                 <th className="border border-gray-400 p-0.5 text-left" style={{ fontSize: `${headerFont}px` }}>프로젝트명</th>
@@ -206,7 +195,6 @@ export function ReportView() {
             <tbody>
               {execRowsData.map(({ exec, projects, runs }) => {
                 if (!exec) return null
-                const color = EXECUTIVE_COLORS[exec.name] ?? { bg: '#f9fafb', header: '#374151', text: '#374151' }
                 return projects.map((project, pi) => {
                   const isFirstInExec = pi === 0
                   const run = runs.find(r => pi >= r.startIdx && pi < r.startIdx + r.span)!
@@ -217,17 +205,13 @@ export function ReportView() {
                     <tr key={project.id} className="print-no-break" style={{ lineHeight: 1.15 }}>
                       {isFirstInExec && (
                         <td rowSpan={projects.length}
-                          className="border border-gray-400 text-center align-middle font-bold"
+                          className="border border-gray-400 text-center align-middle font-medium"
                           style={{
-                            backgroundColor: color.header,
-                            color: 'white',
                             fontSize: `${bodyFont}px`,
                             padding: '2px',
                             wordBreak: 'keep-all',
                           }}>
-                          {exec.name}<br/>
-                          <span style={{ fontSize: `${Math.max(4, bodyFont - 1)}px`, fontWeight: 'normal', opacity: 0.85 }}>{exec.title}</span><br/>
-                          <span style={{ fontSize: `${Math.max(4, bodyFont - 1)}px`, fontWeight: 'normal', opacity: 0.85 }}>({projects.length}건)</span>
+                          {exec.name}
                         </td>
                       )}
                       {isFirstInAssignee && (
@@ -237,14 +221,13 @@ export function ReportView() {
                           {assigneeText}
                         </td>
                       )}
-                      <td className="border border-gray-300 align-middle font-medium" style={{ fontSize: `${bodyFont}px`, padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={project.projectName}>
+                      <td className="border border-gray-300 align-middle" style={{ fontSize: `${bodyFont}px`, padding: '0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={project.projectName}>
                         {project.projectName}
                       </td>
                       {printCells.map((cell, ci) => (
                         <td key={ci} colSpan={cell.colSpan}
                           className="week-cell border border-gray-200 text-center align-middle"
                           style={{
-                            backgroundColor: STATUS_BG[cell.category],
                             fontSize: `${cellFont}px`,
                             padding: '0 1px',
                             whiteSpace: 'nowrap',
@@ -265,7 +248,7 @@ export function ReportView() {
       </div>
 
       <style>{`
-        @page { size: A4 landscape; margin: 8mm; }
+        @page { size: A4 portrait; margin: 10mm; }
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
           body * { visibility: hidden; }
