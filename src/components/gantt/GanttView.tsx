@@ -382,7 +382,7 @@ export function GanttView() {
                       className={mi === currentMonthIdx ? 'h-full' : ''}
                       style={{
                         width: CELL_W * 4 + 'px',
-                        backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue-light)' : undefined,
+                        backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue-light)' : '#f3f4f6',
                       }}
                     />
                   ))}
