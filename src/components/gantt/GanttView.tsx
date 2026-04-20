@@ -538,14 +538,14 @@ export function GanttView() {
                                 : ws.category !== 'empty' ? STATUS_CELL_BG[ws.category]
                                 : isCurrentMonth ? '#e8f0f9' : '#ffffff',
                               color: STATUS_CELL_TEXT[ws.category],
-                              fontSize: '9px',
+                              fontSize: '10px',
                               overflow: 'hidden',
-                              padding: '0 3px',
+                              padding: '0 4px',
                               flexShrink: 0,
                             }}
                           >
                             {text && text !== '-' ? (
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', display: 'block' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', display: 'block', lineHeight: 1.2 }}>
                                 {text.replace(/\n/g, ' ')}
                               </span>
                             ) : null}
