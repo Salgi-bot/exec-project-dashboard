@@ -49,6 +49,7 @@ export function TopBar({ onMenuClick, syncStatus, lastSynced }: Props) {
         </svg>
       </button>
 
+      <FileImportButton />
       <PeriodSelector />
 
       <div className="flex items-center gap-1.5 md:gap-2 ml-auto flex-wrap justify-end">
@@ -122,7 +123,6 @@ export function TopBar({ onMenuClick, syncStatus, lastSynced }: Props) {
         />
 
         <span title={syncTip} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: syncDot, flexShrink: 0 }} />
-        <FileImportButton />
         {sheet && (
           <button
             onClick={handleExcelExport}
