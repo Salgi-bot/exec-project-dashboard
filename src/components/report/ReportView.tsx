@@ -151,6 +151,19 @@ export function ReportView() {
   const page1Execs = execRowsData.slice(0, splitIdx)
   const page2Execs = execRowsData.slice(splitIdx)
 
+  // 페이지별 행 수 → A4 가용 높이 균등 분배
+  // @page margin 10mm → 가용 277mm
+  // 페이지1: 제목 6mm + 2행 thead 10mm = 261mm 가용
+  // 페이지2: 2행 thead 10mm만 차감 = 267mm 가용
+  // border 1px/행 ≈ 0.264mm
+  const p1Rows = page1Execs.reduce((s, { projects }) => s + 1 + projects.length, 0)
+  const p2Rows = page2Execs.reduce((s, { projects }) => s + 1 + projects.length, 0)
+  const p1RowHMm = p1Rows > 0 ? (261 - p1Rows * 0.264) / p1Rows : 8
+  const p2RowHMm = p2Rows > 0 ? (267 - p2Rows * 0.264) / p2Rows : 8
+  // 폰트: 행 높이의 38% (여백 포함 1줄 기준), 6.5~11px 범위
+  const p1Font = +Math.min(11, Math.max(6.5, p1RowHMm * 3.78 * 0.38)).toFixed(1)
+  const p2Font = +Math.min(11, Math.max(6.5, p2RowHMm * 3.78 * 0.38)).toFixed(1)
+
   // 연도 그룹 (thead 첫 번째 행)
   const yearGroups = useMemo(() => {
     const groups: { year: string; colSpan: number }[] = []
@@ -264,7 +277,11 @@ export function ReportView() {
         </div>
 
         {/* 1페이지 테이블 */}
-        <div className="px-2 pt-1">
+        <div className="px-2 pt-1" style={{
+          ['--row-h' as string]: `${p1RowHMm.toFixed(2)}mm`,
+          ['--prt-font' as string]: `${p1Font}px`,
+          ['--prt-cell-font' as string]: `${Math.max(6, p1Font - 0.5)}px`,
+        }}>
           {renderTable(page1Execs)}
         </div>
 
@@ -272,7 +289,11 @@ export function ReportView() {
         {page2Execs.length > 0 && (
           <>
             <div className="page-break" />
-            <div className="px-2 pt-1">
+            <div className="px-2 pt-1" style={{
+              ['--row-h' as string]: `${p2RowHMm.toFixed(2)}mm`,
+              ['--prt-font' as string]: `${p2Font}px`,
+              ['--prt-cell-font' as string]: `${Math.max(6, p2Font - 0.5)}px`,
+            }}>
               {renderTable(page2Execs)}
             </div>
           </>
@@ -322,12 +343,13 @@ export function ReportView() {
           tr { page-break-inside: avoid; break-inside: avoid; }
 
           .report-title { font-size: 11px; }
-          .report-year-th { font-size: 8px; font-weight: 800; }
-          .report-th { padding: 2px 3px; font-size: 7.5px; font-weight: 700; }
-          .report-project { padding: 1px 3px; font-size: 7.5px; font-weight: 600; line-height: 1.2; overflow: hidden; }
-          .report-cell { padding: 1px 2px; font-size: 7px; font-weight: 500; line-height: 1.2; }
-          .report-band td { padding: 1px 5px; font-size: 7.5px; line-height: 1.2; font-weight: 700; }
-          .report-row { line-height: 1.2; }
+          .report-year-th { font-size: var(--prt-font, 8px); font-weight: 800; }
+          .report-th { padding: 2px 3px; font-size: var(--prt-font, 7.5px); font-weight: 700; }
+          .report-project { padding: 1px 3px; font-size: var(--prt-font, 7.5px); font-weight: 600; line-height: 1.2; overflow: hidden; }
+          .report-cell { padding: 1px 2px; font-size: var(--prt-cell-font, 7px); font-weight: 500; line-height: 1.2; overflow: hidden; }
+          .report-band td { padding: 1px 5px; font-size: var(--prt-font, 7.5px); line-height: 1.2; font-weight: 700; overflow: hidden; }
+          .report-row { line-height: 1.2; height: var(--row-h, auto); }
+          .exec-band { height: var(--row-h, auto); }
         }
       `}</style>
     </div>
