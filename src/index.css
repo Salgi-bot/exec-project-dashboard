@@ -1,6 +1,5 @@
-@import "tailwindcss";
-
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
 /* 아이팝엔지니어링 CI 컬러 */
 :root {
