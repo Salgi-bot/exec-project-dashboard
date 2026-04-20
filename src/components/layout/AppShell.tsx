@@ -78,7 +78,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell flex h-screen overflow-hidden">
-      <div className={hideUI ? 'hidden' : ''}>
+      <div className={hideUI ? 'no-print hidden' : 'no-print'}>
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </div>
       <div className="app-main flex-1 flex flex-col overflow-hidden min-w-0">

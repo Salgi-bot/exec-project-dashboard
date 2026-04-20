@@ -195,12 +195,13 @@ export function ReportView() {
         </div>
       </div>
 
+      <style>{`@media print { html { zoom: ${printZoom}; } }`}</style>
+
       <div ref={printRef} className="bg-white print-area" style={{
         ['--print-body-font' as string]: `${bodyFont}px`,
         ['--print-cell-font' as string]: `${cellFont}px`,
         ['--print-header-font' as string]: `${headerFont}px`,
         ['--print-row-h' as string]: `${rowHeightMm}mm`,
-        ['--print-zoom' as string]: printZoom,
       }}>
         {/* 제목만 */}
         <div className="px-2 py-1 border-b border-gray-400 print-no-break">
@@ -292,15 +293,14 @@ export function ReportView() {
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
 
-          /* 레이아웃 플랫하게 + 인쇄 외 영역 완전 숨김 (position:absolute 대신 display:none) */
+          /* 레이아웃 플랫하게 + 인쇄 외 영역 완전 숨김 */
           .app-shell { display: block !important; height: auto !important; overflow: visible !important; }
-          .app-shell > aside { display: none !important; }
+          .app-shell aside { display: none !important; }
           .app-main { display: block !important; overflow: visible !important; }
-          .app-main > .no-print { display: none !important; }
           main { display: block !important; overflow: visible !important; height: auto !important; background: white !important; }
           .no-print { display: none !important; }
 
-          .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; zoom: var(--print-zoom, 1); transform-origin: top left; }
+          .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; width: 100% !important; }
           thead { display: table-header-group; }
