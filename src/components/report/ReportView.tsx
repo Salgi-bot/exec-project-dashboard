@@ -19,9 +19,9 @@ const STATUS_CELL_BG: Record<StatusCategory, string> = {
 const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
   active:       '#2c609e',
   complete:     '#556d1f',
-  pending:      '#000000',
-  review:       '#000000',
-  construction: '#000000',
+  pending:      '#4b5563',
+  review:       '#4b5563',
+  construction: '#4b5563',
   inactive:     '#6b7280',
   empty:        '#000000',
 }
@@ -30,6 +30,20 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
 // 210mm × 297mm -> 793.7 × 1122.5 px ; content = 173mm × 277mm -> 653.9 × 1046.9 px
 const A4_CONTENT_W_PX = 654
 const A4_CONTENT_H_PX = 1047
+const PRINT_MONTHS = 5
+
+// 월별 레이아웃 관련 상수
+const PROJECT_COL_WIDTH_PCT = 32
+const MONTH_COL_WIDTH_PCT = (100 - PROJECT_COL_WIDTH_PCT) / PRINT_MONTHS // 13.6%
+
+// 폰트·높이 (고정값)
+const TITLE_H_PX = 36
+const MIN_ROW_H_PX = 22
+const HEADER_FONT_PX = 11
+const YEAR_FONT_PX = 12
+const BAND_FONT_PX = 11
+const PROJECT_FONT_PX = 10
+const CELL_FONT_PX = 9
 
 function getCurrentMonthIndex(period: SheetPeriod): number {
   const now = new Date()
@@ -47,37 +61,48 @@ function getCurrentMonthIndex(period: SheetPeriod): number {
   return nowAbs > startAbs ? period.totalMonths - 1 : 0
 }
 
-function buildPrintRow(
+/**
+ * 주어진 sheet-relative monthIndex에 해당하는 월별 상태 텍스트를 추출.
+ * - weekStatuses의 colSpan은 "주" 단위 (4주 = 1개월)
+ * - monthIndex × 4 + weekIndex 를 절대 주 인덱스로 환산
+ * - 절대 주 범위가 monthIdx의 [mi*4, mi*4+4) 와 겹치면 해당 월에 포함
+ * - 동일 월 내 중복 텍스트 제거, 서로 다른 텍스트는 " / " 로 연결
+ */
+function getMonthlyStatus(
   weekStatuses: WeekStatus[],
-  printStartMonth: number,
-  printMonths: number,
-): { text: string; colSpan: number; category: StatusCategory }[] {
-  const startAbs = printStartMonth * 4
-  const endAbs   = (printStartMonth + printMonths) * 4
-  const origins = weekStatuses
-    .filter(ws => ws.colSpan !== 0)
-    .filter(ws => ws.text !== '' && ws.text != null)
-    .map(ws => ({ ...ws, abs: ws.monthIndex * 4 + ws.weekIndex }))
-    .sort((a, b) => a.abs - b.abs)
-  const result: { text: string; colSpan: number; category: StatusCategory }[] = []
-  let pos = startAbs
-  const pushEmpty = (span: number) => {
-    if (span <= 0) return
-    result.push({ text: '', colSpan: span, category: 'empty' })
+  monthIdx: number,
+): { text: string; category: StatusCategory } {
+  const monthStart = monthIdx * 4
+  const monthEnd   = monthStart + 4 // exclusive
+
+  const covers: { abs: number; text: string; category: StatusCategory }[] = []
+  for (const ws of weekStatuses) {
+    if (ws.colSpan === 0) continue            // 연속 셀의 흔적 (원점 아님)
+    if (!ws.text || ws.text === '') continue  // 빈 셀 제외
+    const startAbs = ws.monthIndex * 4 + ws.weekIndex
+    const endAbs   = startAbs + ws.colSpan    // exclusive
+    if (endAbs <= monthStart) continue
+    if (startAbs >= monthEnd) continue
+    covers.push({ abs: startAbs, text: ws.text, category: ws.category })
   }
-  for (const ws of origins) {
-    const wsEnd = ws.abs + ws.colSpan
-    if (wsEnd <= startAbs) continue
-    if (ws.abs >= endAbs) break
-    const cellStart = Math.max(ws.abs, startAbs)
-    const cellEnd   = Math.min(wsEnd, endAbs)
-    pushEmpty(cellStart - pos)
-    const cat = ws.text ? classifyStatus(ws.text) : 'empty'
-    result.push({ text: ws.text, colSpan: cellEnd - cellStart, category: cat })
-    pos = cellEnd
+
+  if (covers.length === 0) return { text: '', category: 'empty' }
+
+  // 시작 주 오름차순 정렬 (이후 = 더 최근)
+  covers.sort((a, b) => a.abs - b.abs)
+
+  // 동일 문자열 중복 제거 (순서 유지)
+  const seen = new Set<string>()
+  const uniqTexts: string[] = []
+  for (const c of covers) {
+    if (seen.has(c.text)) continue
+    seen.add(c.text)
+    uniqTexts.push(c.text)
   }
-  pushEmpty(endAbs - pos)
-  return result
+
+  const text = uniqTexts.join(' / ')
+  const category = classifyStatus(text)
+  return { text, category }
 }
 
 export function ReportView() {
@@ -91,7 +116,6 @@ export function ReportView() {
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   const monthLabels = getMonthLabels(sheet.period)
-  const PRINT_MONTHS = 5
   const currentMonthIdx = getCurrentMonthIndex(sheet.period)
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
   const printEnd = Math.min(sheet.period.totalMonths, adjustedStart + PRINT_MONTHS)
@@ -131,7 +155,7 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 행 수 기준 2페이지 균등 분할
+  // 행 수 기준 2페이지 균등 분할 (임원 밴드 1행 + 프로젝트 n행)
   const totalRows = execRowsData.reduce((sum, { projects }) => sum + 1 + projects.length, 0)
   let accumulated = 0
   let splitIdx = execRowsData.length
@@ -142,18 +166,19 @@ export function ReportView() {
   const page1Execs = execRowsData.slice(0, splitIdx)
   const page2Execs = execRowsData.slice(splitIdx)
 
-  // thead 2행 포함한 전체 행 수
-  const p1Rows = page1Execs.reduce((sum, { projects }) => sum + 1 + projects.length, 0) + 2
-  const p2Rows = page2Execs.length > 0
-    ? page2Execs.reduce((sum, { projects }) => sum + 1 + projects.length, 0) + 2
-    : 1
+  // 페이지별 임원·프로젝트 수 (검증 패널용)
+  const p1ExecCount = page1Execs.length
+  const p1ProjCount = page1Execs.reduce((s, { projects }) => s + projects.length, 0)
+  const p2ExecCount = page2Execs.length
+  const p2ProjCount = page2Execs.reduce((s, { projects }) => s + projects.length, 0)
 
+  // 연도 그룹 (월별 컬럼이므로 colSpan += 1)
   const yearGroups = useMemo(() => {
     const groups: { year: string; colSpan: number }[] = []
     for (const ml of printLabels) {
       const last = groups[groups.length - 1]
-      if (last && last.year === ml.yearShort) last.colSpan += 4
-      else groups.push({ year: ml.yearShort, colSpan: 4 })
+      if (last && last.year === ml.yearShort) last.colSpan += 1
+      else groups.push({ year: ml.yearShort, colSpan: 1 })
     }
     return groups
   }, [printLabels])
@@ -171,18 +196,14 @@ export function ReportView() {
     }
   }
 
-  function renderTable(execs: typeof execRowsData, rowHeightPx: number, withTitle: boolean) {
-    const titleH = withTitle ? 36 : 0
-    const tableFontSize = Math.max(8, Math.floor(rowHeightPx * 0.38))
-    const projectFontSize = Math.max(9, Math.floor(rowHeightPx * 0.42))
-    const bandFontSize = Math.max(10, Math.floor(rowHeightPx * 0.52))
-    const yearFontSize = Math.max(10, Math.floor(rowHeightPx * 0.44))
+  function renderTable(execs: typeof execRowsData, withTitle: boolean) {
+    const totalCols = 1 + printMonths
 
     return (
       <>
         {withTitle && (
           <div style={{
-            height: titleH,
+            height: TITLE_H_PX,
             padding: '4px 8px',
             borderBottom: '1px solid #6b7280',
             display: 'flex',
@@ -206,53 +227,52 @@ export function ReportView() {
           }}
         >
           <colgroup>
-            <col style={{ width: '34%' }} />
-            {printLabels.map((_, mi) =>
-              [0, 1, 2, 3].map(wi => (
-                <col key={`${mi}_${wi}`} style={{ width: `${66 / (printMonths * 4)}%` }} />
-              ))
-            )}
+            <col style={{ width: `${PROJECT_COL_WIDTH_PCT}%` }} />
+            {printLabels.map((_, mi) => (
+              <col key={mi} style={{ width: `${MONTH_COL_WIDTH_PCT}%` }} />
+            ))}
           </colgroup>
           <thead>
-            <tr style={{ height: rowHeightPx, backgroundColor: '#d1d5db' }}>
-              <th style={cellBaseStyle(rowHeightPx)} />
+            <tr style={{ backgroundColor: '#d1d5db' }}>
+              <th
+                rowSpan={2}
+                style={{
+                  ...headerCellStyle(),
+                  textAlign: 'left',
+                  fontWeight: 700,
+                  fontSize: HEADER_FONT_PX,
+                  color: '#1f2937',
+                  backgroundColor: '#f3f4f6',
+                  paddingLeft: 6,
+                }}
+              >
+                프로젝트명 / 담당임원
+              </th>
               {yearGroups.map((g, i) => (
                 <th
                   key={i}
                   colSpan={g.colSpan}
                   style={{
-                    ...cellBaseStyle(rowHeightPx),
+                    ...headerCellStyle(),
                     textAlign: 'center',
                     fontWeight: 800,
-                    fontSize: yearFontSize,
+                    fontSize: YEAR_FONT_PX,
                     color: '#111827',
                   }}
                 >
-                  20{g.year}년
+                  20{g.year}
                 </th>
               ))}
             </tr>
-            <tr style={{ height: rowHeightPx, backgroundColor: '#f3f4f6' }}>
-              <th
-                style={{
-                  ...cellBaseStyle(rowHeightPx),
-                  textAlign: 'left',
-                  fontWeight: 700,
-                  fontSize: tableFontSize,
-                  color: '#1f2937',
-                }}
-              >
-                프로젝트명
-              </th>
+            <tr style={{ backgroundColor: '#f3f4f6' }}>
               {printLabels.map((ml, mi) => (
                 <th
                   key={mi}
-                  colSpan={4}
                   style={{
-                    ...cellBaseStyle(rowHeightPx),
+                    ...headerCellStyle(),
                     textAlign: 'center',
                     fontWeight: 700,
-                    fontSize: tableFontSize,
+                    fontSize: HEADER_FONT_PX,
                     color: '#1f2937',
                   }}
                 >
@@ -264,65 +284,67 @@ export function ReportView() {
           <tbody>
             {execs.map(({ exec, projects }) => {
               if (!exec) return null
-              const totalCols = 1 + printMonths * 4
               return [
-                <tr key={`band-${exec.id}`} style={{ height: rowHeightPx, backgroundColor: '#e5e7eb' }}>
+                <tr key={`band-${exec.id}`} style={{ backgroundColor: '#e5e7eb' }}>
                   <td
                     colSpan={totalCols}
                     style={{
-                      ...cellBaseStyle(rowHeightPx),
+                      ...bodyCellStyle(),
                       textAlign: 'left',
                       fontWeight: 700,
-                      fontSize: bandFontSize,
+                      fontSize: BAND_FONT_PX,
                       color: '#111827',
                       paddingLeft: 8,
+                      minHeight: MIN_ROW_H_PX,
                     }}
                   >
                     ■ {exec.name} ({projects.length}건)
                   </td>
                 </tr>,
                 ...projects.map(project => {
-                  const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
                   return (
-                    <tr key={project.id} style={{ height: rowHeightPx }}>
+                    <tr key={project.id}>
                       <td
                         style={{
-                          ...cellBaseStyle(rowHeightPx),
-                          fontSize: projectFontSize,
+                          ...bodyCellStyle(),
+                          fontSize: PROJECT_FONT_PX,
                           fontWeight: 600,
                           color: '#000',
                           textAlign: 'left',
                           paddingLeft: 6,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                          whiteSpace: 'normal',
+                          overflow: 'visible',
+                          wordBreak: 'break-word',
                         }}
                       >
                         {project.projectName}
                       </td>
-                      {printCells.map((cell, ci) => (
-                        <td
-                          key={ci}
-                          colSpan={cell.colSpan}
-                          style={{
-                            ...cellBaseStyle(rowHeightPx),
-                            backgroundColor: STATUS_CELL_BG[cell.category],
-                            color: STATUS_CELL_TEXT[cell.category],
-                            textAlign: 'center',
-                            fontSize: tableFontSize,
-                            fontWeight: 500,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {cell.text && cell.text !== '-'
-                            ? cell.text
-                            : cell.text === '-'
-                            ? <span style={{ color: '#ccc' }}>-</span>
-                            : ''}
-                        </td>
-                      ))}
+                      {printLabels.map((_, slotIdx) => {
+                        const sheetMonthIdx = adjustedStart + slotIdx
+                        const { text, category } = getMonthlyStatus(project.weekStatuses, sheetMonthIdx)
+                        return (
+                          <td
+                            key={slotIdx}
+                            style={{
+                              ...bodyCellStyle(),
+                              backgroundColor: STATUS_CELL_BG[category],
+                              color: STATUS_CELL_TEXT[category],
+                              textAlign: 'center',
+                              fontSize: CELL_FONT_PX,
+                              fontWeight: 500,
+                              whiteSpace: 'normal',
+                              overflow: 'visible',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {text && text !== '-'
+                              ? text
+                              : text === '-'
+                              ? <span style={{ color: '#ccc' }}>-</span>
+                              : ''}
+                          </td>
+                        )
+                      })}
                     </tr>
                   )
                 }),
@@ -333,11 +355,6 @@ export function ReportView() {
       </>
     )
   }
-
-  // Row heights for capture (px) — fit A4 content area
-  const p1AvailH = A4_CONTENT_H_PX - 36 // minus title
-  const rowH1Px = Math.floor(p1AvailH / p1Rows)
-  const rowH2Px = page2Execs.length > 0 ? Math.floor(A4_CONTENT_H_PX / p2Rows) : 0
 
   return (
     <div className="p-6">
@@ -365,21 +382,21 @@ export function ReportView() {
 
       {/* 검증 패널 */}
       <div className="mb-3 grid grid-cols-2 gap-2 text-xs font-mono">
-        {([
-          { label: '1페이지', rowHPx: rowH1Px, rows: p1Rows },
-          { label: '2페이지', rowHPx: rowH2Px, rows: p2Rows },
-        ] as const).map(({ label, rowHPx, rows }) => (
-          <div key={label} className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
-            <div className="font-bold mb-1 text-green-800">✓ {label}</div>
-            <div className="text-gray-600 space-y-0.5">
-              <div>행수: <b>{rows}행</b> | 행높이: <b>{rowHPx}px</b></div>
-              <div>합계: <b>{rowHPx * rows}px</b> / {A4_CONTENT_H_PX}px</div>
-            </div>
+        <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
+          <div className="font-bold mb-1 text-green-800">✓ 1페이지</div>
+          <div className="text-gray-600">
+            {p1ExecCount}개 임원, {p1ProjCount}건 프로젝트
           </div>
-        ))}
+        </div>
+        <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
+          <div className="font-bold mb-1 text-green-800">✓ 2페이지</div>
+          <div className="text-gray-600">
+            {p2ExecCount}개 임원, {p2ProjCount}건 프로젝트
+          </div>
+        </div>
       </div>
 
-      {/* 화면 미리보기 (축소) */}
+      {/* 화면 미리보기 */}
       <div className="mb-4 text-xs text-gray-500">아래 미리보기는 실제 PDF 출력과 동일한 레이아웃입니다.</div>
 
       {/* 캡처 대상: 항상 A4 크기로 고정 렌더 */}
@@ -402,7 +419,7 @@ export function ReportView() {
             overflow: 'hidden',
           }}
         >
-          {renderTable(page1Execs, rowH1Px, true)}
+          {renderTable(page1Execs, true)}
         </div>
 
         {page2Execs.length > 0 && (
@@ -417,7 +434,7 @@ export function ReportView() {
               overflow: 'hidden',
             }}
           >
-            {renderTable(page2Execs, rowH2Px, false)}
+            {renderTable(page2Execs, false)}
           </div>
         )}
       </div>
@@ -425,12 +442,24 @@ export function ReportView() {
   )
 }
 
-function cellBaseStyle(rowH: number): React.CSSProperties {
+function headerCellStyle(): React.CSSProperties {
   return {
     border: '1px solid #6b7280',
     boxSizing: 'border-box',
-    padding: `${Math.max(1, Math.floor(rowH * 0.12))}px 3px`,
-    lineHeight: 1.1,
+    padding: '4px 3px',
+    lineHeight: 1.2,
     verticalAlign: 'middle',
+    minHeight: MIN_ROW_H_PX,
+  }
+}
+
+function bodyCellStyle(): React.CSSProperties {
+  return {
+    border: '1px solid #6b7280',
+    boxSizing: 'border-box',
+    padding: '3px 4px',
+    lineHeight: 1.25,
+    verticalAlign: 'middle',
+    minHeight: MIN_ROW_H_PX,
   }
 }
