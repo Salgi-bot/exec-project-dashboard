@@ -4,7 +4,7 @@ const navItems = [
   { id: 'dashboard', label: '대시보드' },
   { id: 'gantt', label: '간트차트' },
   { id: 'projects', label: '프로젝트 목록' },
-  { id: 'report', label: 'PDF 리포트' },
+  { id: 'report', label: '출력' },
 ] as const
 
 interface Props {

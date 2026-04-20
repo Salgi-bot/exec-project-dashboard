@@ -34,11 +34,14 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
   empty:        '#e2e8f0',
 }
 
-const CELL_W      = 48
 const NAME_W      = 260   // 프로젝트명 컬럼
 const ASSIGNEE_W  = 72    // 담당자 컬럼
 const ROW_H       = 36
 const HEADER_H    = ROW_H * 3 - 4
+
+function getCellW(): number {
+  return window.innerWidth < 768 ? 36 : 48
+}
 
 function getCurrentMonthIndex(period: SheetPeriod): number {
   const now = new Date()
@@ -72,6 +75,7 @@ export function GanttView() {
   const execOrderMap        = useAppStore(s => s.execOrder)
   const setExecOrderStore   = useAppStore(s => s.setExecOrder)
 
+  const [cellW, setCellW]         = useState(getCellW)
   const [tooltip, setTooltip]     = useState<{ text: string; x: number; y: number } | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addExec, setAddExec]     = useState<Executive | null>(null)
@@ -88,6 +92,12 @@ export function GanttView() {
   const [dragHighlight, setDragHighlight] = useState<{ projectId: string; lo: number; hi: number } | null>(null)
 
   const execOrder = sheet ? (execOrderMap[sheet.sheetId] ?? []) : []
+
+  useEffect(() => {
+    const onResize = () => setCellW(getCellW())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     if (!sheet) return
@@ -222,10 +232,18 @@ export function GanttView() {
 
   if (projects.length === 0) return <div className="p-8"><EmptyState /></div>
 
+  const CELL_W = cellW
   const totalWidth = NAME_W + ASSIGNEE_W + CELL_W * sheet.period.totalMonths * 4
+  const isMobile = cellW === 36
 
   return (
     <div className="h-full flex flex-col">
+      {/* 모바일 안내 배너 */}
+      {isMobile && (
+        <div className="md:hidden px-4 py-2 bg-blue-50 border-b border-blue-200 text-xs text-blue-700 no-print">
+          간트차트는 데스크톱에서 최적화되어 있습니다. 가로 스크롤로 이용하세요.
+        </div>
+      )}
       <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-3 no-print flex-wrap">
         <button
           onClick={() => {
@@ -267,7 +285,7 @@ export function GanttView() {
         <span className="text-xs text-gray-300 ml-auto">셀 클릭: 단일 입력 | 드래그: 기간 입력</span>
       </div>
 
-      <div ref={scrollRef} className="gantt-container flex-1 relative overflow-auto select-none">
+      <div ref={scrollRef} className="gantt-container flex-1 relative overflow-auto select-none" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
         <div style={{ minWidth: totalWidth + 'px', width: totalWidth + 'px' }}>
 
           {/* 헤더 1: 연도 */}

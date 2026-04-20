@@ -10,6 +10,7 @@ interface AppState {
   sheets: Partial<Record<SheetId, SheetData>>
   activeSheetId: SheetId
   editQueue: CellEdit[]
+  undoStack: CellEdit[][]
   fileName: string | null
 
   // 필터
@@ -36,6 +37,7 @@ interface AppState {
   setActiveSheet: (sheetId: SheetId) => void
   applyEdit: (edit: CellEdit) => void
   applyRangeEdit: (projectId: string, startAbsWeek: number, endAbsWeek: number, text: string) => void
+  undo: () => void
   addCustomProject: (executiveId: string, projectName: string, client: string, assignee?: string) => void
 
   // 액션 - 필터
@@ -66,6 +68,7 @@ export const useAppStore = create<AppState>()(
       sheets: {},
       activeSheetId: '2026',
       editQueue: [],
+      undoStack: [],
       fileName: null,
       selectedExecutiveIds: [],
       searchText: '',
@@ -92,6 +95,7 @@ export const useAppStore = create<AppState>()(
       setActiveSheet: (sheetId) => set({ activeSheetId: sheetId, selectedExecutiveIds: [] }),
 
       applyEdit: (edit) => set((state) => {
+        const snapshot = [...state.editQueue]
         const existing = state.editQueue.findIndex(
           e => e.projectId === edit.projectId &&
                e.monthIndex === edit.monthIndex &&
@@ -100,10 +104,14 @@ export const useAppStore = create<AppState>()(
         const newQueue = [...state.editQueue]
         if (existing >= 0) newQueue[existing] = edit
         else newQueue.push(edit)
-        return { editQueue: newQueue }
+        return {
+          editQueue: newQueue,
+          undoStack: [...state.undoStack.slice(-19), snapshot],
+        }
       }),
 
       applyRangeEdit: (projectId, startAbsWeek, endAbsWeek, text) => set((state) => {
+        const snapshot = [...state.editQueue]
         const start = Math.min(startAbsWeek, endAbsWeek)
         const end   = Math.max(startAbsWeek, endAbsWeek)
         const queue = [...state.editQueue]
@@ -115,7 +123,17 @@ export const useAppStore = create<AppState>()(
           if (idx >= 0) queue[idx] = edit
           else queue.push(edit)
         }
-        return { editQueue: queue }
+        return {
+          editQueue: queue,
+          undoStack: [...state.undoStack.slice(-19), snapshot],
+        }
+      }),
+
+      undo: () => set((state) => {
+        if (state.undoStack.length === 0) return {}
+        const newStack = [...state.undoStack]
+        const restored = newStack.pop()!
+        return { editQueue: restored, undoStack: newStack }
       }),
 
       addCustomProject: (executiveId, projectName, client, assignee) => set((state) => {

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useAppStore } from '@/store/appStore'
 import type { Project, WeekStatus } from '@/types/project.types'
 import { classifyStatus } from '@/utils/statusClassifier'
+import { EXECUTIVE_MAP } from '@/constants/executives'
 
 // 편집 적용 후 연속된 동일 텍스트 셀을 하나의 병합 셀로 합침
 // (범위 편집 시 여러 달에 걸친 같은 업무가 하나의 바로 표시되도록)
@@ -59,6 +60,7 @@ export function useFilteredProjects(): Project[] {
   const selectedExecutiveIds = useAppStore(s => s.selectedExecutiveIds)
   const searchText = useAppStore(s => s.searchText)
   const editQueue = useAppStore(s => s.editQueue)
+  const assigneeOverrides = useAppStore(s => s.assigneeOverrides)
   const hideEmpty = useAppStore(s => s.hideEmpty)
   const hideSameTaskMonths = useAppStore(s => s.hideSameTaskMonths)
   const projectOrderMap    = useAppStore(s => s.projectOrderMap)
@@ -92,7 +94,15 @@ export function useFilteredProjects(): Project[] {
       if (selectedExecutiveIds.length > 0 && !selectedExecutiveIds.includes(p.executiveId)) return false
       if (searchText) {
         const q = searchText.toLowerCase()
-        if (!p.name.toLowerCase().includes(q)) return false
+        const assignee = assigneeOverrides[p.id] || EXECUTIVE_MAP[p.executiveId]?.name || ''
+        const cellTexts = p.weekStatuses.map(ws => ws.text || '').join(' ')
+        const searchTarget = [
+          p.projectName,
+          p.client,
+          assignee,
+          cellTexts,
+        ].join(' ').toLowerCase()
+        if (!searchTarget.includes(q)) return false
       }
       if (hideEmpty && isAllEmpty(p)) return false
       if (hideSameTaskMonths > 0 && getLongestSameTaskWeeks(p) >= hideSameTaskMonths * 4) return false
@@ -103,7 +113,7 @@ export function useFilteredProjects(): Project[] {
       const ob = projectOrderMap[b.id] ?? b.rowIndex
       return oa - ob
     })
-  }, [sheets, activeSheetId, selectedExecutiveIds, searchText, editQueue, hideEmpty, hideSameTaskMonths, projectOrderMap, deletedProjectIds, projectMetaEdits])
+  }, [sheets, activeSheetId, selectedExecutiveIds, searchText, editQueue, assigneeOverrides, hideEmpty, hideSameTaskMonths, projectOrderMap, deletedProjectIds, projectMetaEdits])
 }
 
 export function useActiveSheet() {
