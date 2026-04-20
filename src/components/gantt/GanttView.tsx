@@ -379,7 +379,7 @@ export function GanttView() {
                   </div>
                   {monthLabels.map((_, mi) => (
                     <div key={mi}
-                      className={mi === currentMonthIdx ? 'h-full' : ''}
+                      className="h-full"
                       style={{
                         width: CELL_W * 4 + 'px',
                         backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue-light)' : '#f3f4f6',
