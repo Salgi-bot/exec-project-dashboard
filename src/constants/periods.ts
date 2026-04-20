@@ -15,7 +15,7 @@ export function getMonthLabels(period: SheetPeriod): MonthLabel[] {
     labels.push({
       label: `${String(month).padStart(2, '0')}월`,
       year,
-      yearShort: `${String(year).slice(2)}년`,
+      yearShort: `${year}년`,
     })
     month++
     if (month > 12) { month = 1; year++ }
