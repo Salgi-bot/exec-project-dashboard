@@ -123,7 +123,16 @@ export function ReportView() {
   const printMonths = printEnd - adjustedStart
   const printLabels = monthLabels.slice(adjustedStart, adjustedStart + printMonths)
 
-  const printProjects = allProjects.filter(p => !p.isManagerSummaryRow)
+  const printProjects = allProjects.filter(p => {
+    if (p.isManagerSummaryRow) return false
+    // 출력 범위(adjustedStart ~ adjustedStart+printMonths) 내 content가 하나라도 있는 프로젝트만 포함
+    for (let slotIdx = 0; slotIdx < printMonths; slotIdx++) {
+      const sheetMonthIdx = adjustedStart + slotIdx
+      const { text } = getMonthlyStatus(p.weekStatuses, sheetMonthIdx)
+      if (text && text !== '-') return true
+    }
+    return false
+  })
   const execOrder = execOrderMap[sheet.sheetId] ?? []
 
   const grouped = useMemo(() => {

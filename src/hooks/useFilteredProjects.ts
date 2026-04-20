@@ -90,6 +90,7 @@ export function useFilteredProjects(): Project[] {
     })
 
     return projects.filter(p => {
+      if (p.isManagerSummaryRow) return false
       if (deletedProjectIds.includes(p.id)) return false
       if (selectedExecutiveIds.length > 0 && !selectedExecutiveIds.includes(p.executiveId)) return false
       if (searchText) {
