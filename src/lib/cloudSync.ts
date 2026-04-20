@@ -1,8 +1,9 @@
-import { supabase } from './supabase'
 import { useAppStore } from '@/store/appStore'
 import { EXECUTIVE_MAP } from '@/constants/executives'
 
-const STATE_ID = 'main'
+const GIST_ID    = import.meta.env.VITE_GIST_ID    as string | undefined
+const GIST_TOKEN = import.meta.env.VITE_GIST_TOKEN as string | undefined
+const GIST_FILE  = 'exec_dashboard_state.json'
 
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -10,9 +11,7 @@ let _onStatusChange: ((s: SyncStatus, lastAt?: Date) => void) | null = null
 export function onSyncStatusChange(cb: (s: SyncStatus, lastAt?: Date) => void) {
   _onStatusChange = cb
 }
-function notify(s: SyncStatus, at?: Date) {
-  _onStatusChange?.(s, at)
-}
+function notify(s: SyncStatus, at?: Date) { _onStatusChange?.(s, at) }
 
 function syncExecutiveTitles(state: ReturnType<typeof useAppStore.getState>) {
   if (!state.sheets) return state
@@ -46,23 +45,42 @@ function getPersistedState() {
   }
 }
 
-async function saveToCloud(retries = 2): Promise<boolean> {
+function gistAvailable() {
+  return !!(GIST_ID && GIST_TOKEN)
+}
+
+async function gistFetch<T = unknown>(method: 'GET' | 'PATCH', body?: object): Promise<T> {
+  const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${GIST_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`GitHub Gist API ${res.status}: ${await res.text()}`)
+  return res.json() as Promise<T>
+}
+
+async function saveToGist(retries = 2): Promise<boolean> {
+  if (!gistAvailable()) { notify('error'); return false }
   for (let i = 0; i <= retries; i++) {
     try {
-      const { error } = await supabase.from('app_state').upsert({
-        id: STATE_ID,
-        data: getPersistedState(),
-        updated_at: new Date().toISOString(),
+      await gistFetch('PATCH', {
+        files: {
+          [GIST_FILE]: {
+            content: JSON.stringify({
+              data: getPersistedState(),
+              updated_at: new Date().toISOString(),
+            }),
+          },
+        },
       })
-      if (error) throw error
       notify('saved', new Date())
       return true
     } catch (e) {
-      if (i === retries) {
-        console.warn('[CloudSync] 저장 실패:', e)
-        notify('error')
-        return false
-      }
+      if (i === retries) { console.warn('[CloudSync] 저장 실패:', e); notify('error'); return false }
       await new Promise(r => setTimeout(r, 1000 * (i + 1)))
     }
   }
@@ -71,19 +89,19 @@ async function saveToCloud(retries = 2): Promise<boolean> {
 
 export async function forceSave(): Promise<boolean> {
   notify('saving')
-  return saveToCloud(1)
+  return saveToGist(1)
 }
 
 export async function loadFromCloud(): Promise<boolean> {
+  if (!gistAvailable()) { notify('error'); return false }
   try {
-    const { data, error } = await supabase
-      .from('app_state')
-      .select('data')
-      .eq('id', STATE_ID)
-      .single()
-    if (error) throw error
-    if (data?.data) {
-      useAppStore.setState(syncExecutiveTitles(data.data))
+    const gist = await gistFetch<{ files: Record<string, { content: string }> }>('GET')
+    const raw = gist.files?.[GIST_FILE]?.content
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    const state = parsed.data ?? parsed
+    if (state?.sheets) {
+      useAppStore.setState(syncExecutiveTitles(state))
       notify('saved', new Date())
       return true
     }
@@ -96,25 +114,14 @@ export async function loadFromCloud(): Promise<boolean> {
 }
 
 export async function initCloudSync(): Promise<void> {
-  try {
-    const { data, error } = await supabase
-      .from('app_state')
-      .select('data')
-      .eq('id', STATE_ID)
-      .single()
-
-    if (error) console.warn('[CloudSync] 초기 로드 실패:', error)
-
-    if (data?.data) {
-      useAppStore.setState(syncExecutiveTitles(data.data))
-      notify('saved', new Date())
-    } else {
-      useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
-    }
-  } catch (e) {
-    console.warn('[CloudSync] 초기화 실패:', e)
+  if (!gistAvailable()) {
+    console.warn('[CloudSync] VITE_GIST_TOKEN / VITE_GIST_ID 환경변수 없음')
     useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
+    return
   }
+
+  const loaded = await loadFromCloud()
+  if (!loaded) useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let prevSnapshot = JSON.stringify(getPersistedState())
@@ -123,9 +130,8 @@ export async function initCloudSync(): Promise<void> {
     const next = JSON.stringify(getPersistedState())
     if (next === prevSnapshot) return
     prevSnapshot = next
-
     notify('saving')
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => saveToCloud(), 1500)
+    saveTimer = setTimeout(() => saveToGist(), 1500)
   })
 }
