@@ -270,6 +270,30 @@ export function ReportView() {
         </div>
       </div>
 
+      {/* 출력 검증 패널 (화면 전용) */}
+      <div className="no-print mb-3 grid grid-cols-2 gap-2 text-xs font-mono">
+        {[
+          { label: '1페이지', rows: p1Rows, rowH: p1RowHMm, avail: 261, font: p1Font },
+          { label: '2페이지', rows: p2Rows, rowH: p2RowHMm, avail: 267, font: p2Font },
+        ].map(({ label, rows, rowH, avail, font }) => {
+          const used = +(rowH * rows).toFixed(1)
+          const ok = used <= avail
+          return (
+            <div key={label} className={`rounded-lg border px-3 py-2 ${ok ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+              <div className="font-bold mb-1" style={{ color: ok ? '#166534' : '#991b1b' }}>
+                {ok ? '✓' : '✗'} {label}
+              </div>
+              <div className="text-gray-600 space-y-0.5">
+                <div>행 수: <b>{rows}</b>행</div>
+                <div>행 높이: <b>{rowH.toFixed(2)}mm</b></div>
+                <div>사용 높이: <b style={{ color: ok ? '#166534' : '#991b1b' }}>{used}mm</b> / 가용 {avail}mm</div>
+                <div>폰트: <b>{font}px</b> ({(font * 0.75).toFixed(1)}pt)</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       <div ref={printRef} className="bg-white print-area">
         {/* 제목 */}
         <div className="px-2 py-1 border-b border-gray-400 print-no-break">
