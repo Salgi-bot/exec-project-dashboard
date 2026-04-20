@@ -290,8 +290,8 @@ export function GanttView() {
 
           {/* 헤더 1: 연도 */}
           <div className="flex sticky top-0 z-20 bg-slate-800 text-white" style={{ height: ROW_H + 'px' }}>
-            <div className="shrink-0 bg-slate-800 sticky left-0 z-30 border-r border-slate-600"
-              style={{ width: NAME_W + ASSIGNEE_W + 'px' }} />
+            <div className="shrink-0 bg-slate-800 sticky left-0 z-30 border-r border-slate-600 flex items-center px-2 text-xs font-semibold text-slate-400"
+              style={{ width: NAME_W + ASSIGNEE_W + 'px' }}>연도</div>
             {yearGroups.map((g, i) => (
               <div key={i}
                 className="flex items-center justify-center text-xs font-bold border-r border-slate-600 bg-slate-700"
