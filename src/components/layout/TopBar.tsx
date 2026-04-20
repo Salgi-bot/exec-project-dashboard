@@ -1,8 +1,7 @@
 import { FileImportButton } from '@/components/shared/FileImportButton'
 import { PeriodSelector } from '@/components/shared/PeriodSelector'
 import { useAppStore } from '@/store/appStore'
-import { useActiveSheet, useFilteredProjects } from '@/hooks/useFilteredProjects'
-import { exportToExcel } from '@/utils/excelExport'
+import { useActiveSheet } from '@/hooks/useFilteredProjects'
 
 import type { SyncStatus } from '@/lib/cloudSync'
 
@@ -25,15 +24,7 @@ export function TopBar({ onMenuClick, syncStatus, lastSynced }: Props) {
   const hideSameTaskMonths = useAppStore(s => s.hideSameTaskMonths)
   const setHideSameTaskMonths = useAppStore(s => s.setHideSameTaskMonths)
   const sheet = useActiveSheet()
-  const projects = useFilteredProjects()
-  const assigneeOverrides = useAppStore(s => s.assigneeOverrides)
-
   const availableExecs = sheet?.executives || []
-
-  function handleExcelExport() {
-    if (!sheet) return
-    exportToExcel(projects, sheet, assigneeOverrides, `임원회의_진행일정표_${sheet.sheetId}.xlsx`)
-  }
 
   return (
     <div className="bg-white border-b border-gray-200 px-3 md:px-6 py-3 flex items-center gap-2 md:gap-4 flex-wrap no-print">
