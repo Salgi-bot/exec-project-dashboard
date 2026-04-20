@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useLayoutEffect } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -7,7 +7,6 @@ import { classifyStatus } from '@/utils/statusClassifier'
 import { generatePDF } from '@/utils/pdfExporter'
 import type { StatusCategory, WeekStatus, SheetPeriod } from '@/types/project.types'
 
-// 간트와 동일한 상태 셀 색상
 const STATUS_CELL_BG: Record<StatusCategory, string> = {
   active:       '#e8f0f9',
   complete:     '#f0f4e3',
@@ -53,7 +52,6 @@ function buildPrintRow(
 
   const origins = weekStatuses
     .filter(ws => ws.colSpan !== 0)
-    // 텍스트 없는 origin은 empty 구간으로 흘려보내 머지되도록 제외 ('-'는 유지)
     .filter(ws => ws.text !== '' && ws.text != null)
     .map(ws => ({ ...ws, abs: ws.monthIndex * 4 + ws.weekIndex }))
     .sort((a, b) => a.abs - b.abs)
@@ -83,17 +81,16 @@ function buildPrintRow(
 }
 
 export function ReportView() {
-  const sheet       = useActiveSheet()
-  const allProjects = useFilteredProjects()
+  const sheet        = useActiveSheet()
+  const allProjects  = useFilteredProjects()
   const execOrderMap = useAppStore(s => s.execOrder)
-  const printRef    = useRef<HTMLDivElement>(null)
+  const printRef     = useRef<HTMLDivElement>(null)
   const [generating, setGenerating] = useState(false)
-  const [printZoom, setPrintZoom] = useState(1)
 
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   const monthLabels = getMonthLabels(sheet.period)
-  const PRINT_MONTHS = 5  // 과거3 + 현재1 + 미래1
+  const PRINT_MONTHS = 5
   const currentMonthIdx = getCurrentMonthIndex(sheet.period)
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
   let printEnd = Math.min(sheet.period.totalMonths, adjustedStart + PRINT_MONTHS)
@@ -105,16 +102,11 @@ export function ReportView() {
 
   const handlePDF = () => {
     setGenerating(true)
-    try {
-      generatePDF()
-    } finally {
-      setGenerating(false)
-    }
+    try { generatePDF() } finally { setGenerating(false) }
   }
 
   const printProjects = allProjects.filter(p => !p.isManagerSummaryRow)
 
-  // 임원 순서 반영한 그룹
   const execOrder = execOrderMap[sheet.sheetId] ?? []
   const grouped = useMemo(() => {
     const map = new Map<string, typeof printProjects>()
@@ -137,7 +129,6 @@ export function ReportView() {
     return ordered.filter(Boolean)
   }, [sheet.executives, execOrder, grouped])
 
-  // 팀장 컬럼 rowspan용 데이터
   const execRowsData = useMemo(() => {
     return orderedExecs.map(exec => {
       if (!exec) return null
@@ -146,36 +137,107 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 2페이지 꽉 채우기
-  // A4 세로: 297 - 20margin = 277mm/page. 배너 10mm + thead 8mm = 18mm 차감
-  // 페이지1 tbody = 259mm, 페이지2 tbody = 269mm (배너 없음, thead 반복)
-  // 총 2페이지 tbody ≈ 528mm (border 1px/행 보정 포함)
-  const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length + 1, 0)
-  const borderOverheadMm = totalRows / 3.78  // collapsed border 1px per row
-  const tbodyMm = 528 - borderOverheadMm
-  const rowHeightMm = totalRows > 0 ? tbodyMm / totalRows : 8
-  // 행 안에 2줄까지 들어가도록 폰트 제한 (1mm ≈ 3.78px, 행당 2줄 = 폰트×2.4 = 5mm 이하)
-  const maxFontPx = Math.floor((rowHeightMm * 3.78) / 2.4)
-  const bodyFont = Math.max(6.5, Math.min(9, maxFontPx))
-  const cellFont = Math.max(6, bodyFont - 0.5)
-  const headerFont = Math.max(7, Math.min(10, bodyFont + 1))
+  // 행 수 기준으로 2페이지 균등 분할
+  const totalRows = execRowsData.reduce((sum, { projects }) => sum + 1 + projects.length, 0)
+  let accumulated = 0
+  let splitIdx = execRowsData.length
+  for (let i = 0; i < execRowsData.length; i++) {
+    accumulated += 1 + execRowsData[i].projects.length
+    if (accumulated >= Math.ceil(totalRows / 2)) {
+      splitIdx = i + 1
+      break
+    }
+  }
+  const page1Execs = execRowsData.slice(0, splitIdx)
+  const page2Execs = execRowsData.slice(splitIdx)
 
-  // 실제 렌더 후 높이 측정 → zoom으로 정확히 2페이지에 맞춤
-  useLayoutEffect(() => {
-    if (!printRef.current) return
-    const h = printRef.current.scrollHeight
-    if (h <= 0) return
-    // 2 A4 세로 (10mm 마진): 2 × 277mm × 3.78px/mm ≈ 2094px
-    const targetPx = 2 * 277 * 3.78
-    const zoom = Math.min(1, Math.max(0.55, targetPx / h))
-    setPrintZoom(zoom)
-  }, [execRowsData, printMonths])
+  // 연도 그룹 (thead 첫 번째 행)
+  const yearGroups = useMemo(() => {
+    const groups: { year: string; colSpan: number }[] = []
+    for (const ml of printLabels) {
+      const last = groups[groups.length - 1]
+      if (last && last.year === ml.yearShort) {
+        last.colSpan += 4
+      } else {
+        groups.push({ year: ml.yearShort, colSpan: 4 })
+      }
+    }
+    return groups
+  }, [printLabels])
+
+  // 각 페이지 테이블 렌더 (일반 함수 — React 컴포넌트 아님)
+  function renderTable(execs: typeof execRowsData) {
+    return (
+      <table className="w-full border-collapse report-table" style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '34%' }} />
+          {printLabels.map((_, mi) =>
+            [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${66 / (printMonths * 4)}%` }} />)
+          )}
+        </colgroup>
+        <thead>
+          {/* 연도 행 */}
+          <tr style={{ backgroundColor: '#d1d5db', color: '#111827' }}>
+            <th className="report-th" />
+            {yearGroups.map((g, i) => (
+              <th key={i} colSpan={g.colSpan} className="report-th text-center report-year-th">
+                20{g.year}년
+              </th>
+            ))}
+          </tr>
+          {/* 월 행 */}
+          <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
+            <th className="report-th text-left">프로젝트명</th>
+            {printLabels.map((ml, mi) => (
+              <th key={mi} colSpan={4} className="report-th text-center">
+                {ml.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {execs.map(({ exec, projects }) => {
+            if (!exec) return null
+            const totalCols = 1 + printMonths * 4
+            return [
+              <tr key={`band-${exec.id}`} className="exec-band">
+                <td colSpan={totalCols} className="report-td report-band font-bold">
+                  ■ {exec.name} ({projects.length}건)
+                </td>
+              </tr>,
+              ...projects.map(project => {
+                const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
+                return (
+                  <tr key={project.id} className="print-no-break report-row">
+                    <td className="report-td report-project align-middle">
+                      {project.projectName}
+                    </td>
+                    {printCells.map((cell, ci) => (
+                      <td key={ci} colSpan={cell.colSpan}
+                        className="report-td report-cell text-center align-middle"
+                        style={{
+                          backgroundColor: STATUS_CELL_BG[cell.category],
+                          color: STATUS_CELL_TEXT[cell.category],
+                        }}>
+                        {cell.text && cell.text !== '-' ? cell.text
+                          : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              }),
+            ]
+          })}
+        </tbody>
+      </table>
+    )
+  }
 
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between no-print">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">■ PDF 리포트</h2>
+          <h2 className="text-2xl font-bold text-gray-800">■ 출력</h2>
           <p className="text-gray-500 text-sm mt-1">
             {sheet.period.label} | 출력 범위: {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label}
           </p>
@@ -195,80 +257,29 @@ export function ReportView() {
         </div>
       </div>
 
-      <style>{`@media print { html { zoom: ${printZoom}; } }`}</style>
-
-      <div ref={printRef} className="bg-white print-area" style={{
-        ['--print-body-font' as string]: `${bodyFont}px`,
-        ['--print-cell-font' as string]: `${cellFont}px`,
-        ['--print-header-font' as string]: `${headerFont}px`,
-        ['--print-row-h' as string]: `${rowHeightMm}mm`,
-      }}>
-        {/* 제목만 */}
+      <div ref={printRef} className="bg-white print-area">
+        {/* 제목 */}
         <div className="px-2 py-1 border-b border-gray-400 print-no-break">
           <h1 className="font-bold text-gray-800 report-title">■ 임원회의 PROJECT 진행일정표</h1>
         </div>
 
+        {/* 1페이지 테이블 */}
         <div className="px-2 pt-1">
-          <table className="w-full border-collapse report-table" style={{ tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: '34%' }} />  {/* 프로젝트명 (넓게) */}
-              {printLabels.map((_, mi) =>
-                [0,1,2,3].map(wi => <col key={`${mi}_${wi}`} style={{ width: `${66 / (printMonths * 4)}%` }} />)
-              )}
-            </colgroup>
-            <thead>
-              <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                <th className="report-th text-left">프로젝트명</th>
-                {printLabels.map((ml, mi) => {
-                  const showYear = mi === 0 || (mi > 0 && ml.yearShort !== printLabels[mi - 1].yearShort)
-                  return (
-                    <th key={mi} colSpan={4} className="report-th text-center">
-                      {showYear ? `${ml.yearShort} ` : ''}{ml.label}
-                    </th>
-                  )
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {execRowsData.map(({ exec, projects }) => {
-                if (!exec) return null
-                const totalCols = 1 + printMonths * 4
-                return [
-                  <tr key={`band-${exec.id}`} className="exec-band">
-                    <td colSpan={totalCols} className="report-td report-band font-bold">
-                      ■ {exec.name} ({projects.length}건)
-                    </td>
-                  </tr>,
-                  ...projects.map(project => {
-                    const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
-                    return (
-                      <tr key={project.id} className="print-no-break report-row">
-                        <td className="report-td report-project align-middle">
-                          {project.projectName}
-                        </td>
-                        {printCells.map((cell, ci) => (
-                          <td key={ci} colSpan={cell.colSpan}
-                            className="report-td report-cell text-center align-middle"
-                            style={{
-                              backgroundColor: STATUS_CELL_BG[cell.category],
-                              color: STATUS_CELL_TEXT[cell.category],
-                            }}>
-                            {cell.text && cell.text !== '-' ? cell.text
-                              : cell.text === '-' ? <span style={{ color: '#ccc' }}>-</span> : ''}
-                          </td>
-                        ))}
-                      </tr>
-                    )
-                  }),
-                ]
-              })}
-            </tbody>
-          </table>
+          {renderTable(page1Execs)}
         </div>
+
+        {/* 강제 페이지 브레이크 후 2페이지 테이블 */}
+        {page2Execs.length > 0 && (
+          <>
+            <div className="page-break" />
+            <div className="px-2 pt-1">
+              {renderTable(page2Execs)}
+            </div>
+          </>
+        )}
       </div>
 
       <style>{`
-        /* 공통 */
         .report-th, .report-td {
           border: 1px solid #6b7280;
           box-sizing: border-box;
@@ -279,8 +290,9 @@ export function ReportView() {
         .exec-band { break-after: avoid; page-break-after: avoid; }
         .exec-band + tr { break-before: avoid; page-break-before: avoid; }
 
-        /* 화면 보기용 (편안한 크기) */
+        /* 화면 보기용 */
         .report-title { font-size: 18px; }
+        .report-year-th { font-size: 13px; font-weight: 800; }
         .report-th { padding: 6px 8px; font-size: 13px; font-weight: 600; }
         .report-project { padding: 6px 10px; font-size: 13px; font-weight: 500; }
         .report-cell { padding: 6px 4px; font-size: 12px; font-weight: 500; }
@@ -289,30 +301,33 @@ export function ReportView() {
 
         @page { size: A4 portrait; margin: 10mm; }
 
-        /* 인쇄용 */
         @media print {
           html, body { margin: 0; padding: 0; background: white; }
 
-          /* 레이아웃 플랫하게 + 인쇄 외 영역 완전 숨김 */
           .app-shell { display: block !important; height: auto !important; overflow: visible !important; }
           .app-shell aside { display: none !important; }
           .app-main { display: block !important; overflow: visible !important; }
           main { display: block !important; overflow: visible !important; height: auto !important; background: white !important; }
           .no-print { display: none !important; }
 
+          /* zoom 없음 — 각 테이블이 독립 thead를 가지므로 table-header-group 불필요 */
           .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+          /* 강제 페이지 분할 */
+          .page-break { page-break-after: always; break-after: page; height: 0; margin: 0; padding: 0; }
+
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; width: 100% !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; break-inside: avoid; }
 
-          .report-title { font-size: 13px; }
-          .report-th { padding: 2px 3px; font-size: var(--print-header-font); font-weight: 700; }
-          .report-project { padding: 1px 3px; font-size: var(--print-body-font); font-weight: 600; line-height: 1.2; }
-          .report-cell { padding: 1px 2px; font-size: var(--print-cell-font); font-weight: 500; line-height: 1.2; }
-          .report-band td { padding: 1px 5px; font-size: var(--print-body-font); line-height: 1.2; font-weight: 700; }
-          .report-row { line-height: 1.2; height: var(--print-row-h); }
-          .exec-band { height: var(--print-row-h); }
+          .report-title { font-size: 11px; }
+          .report-year-th { font-size: 8px; font-weight: 800; }
+          .report-th { padding: 2px 3px; font-size: 7.5px; font-weight: 700; }
+          .report-project { padding: 1px 3px; font-size: 7.5px; font-weight: 600; line-height: 1.2; overflow: hidden; }
+          .report-cell { padding: 1px 2px; font-size: 7px; font-weight: 500; line-height: 1.2; }
+          .report-band td { padding: 1px 5px; font-size: 7.5px; line-height: 1.2; font-weight: 700; }
+          .report-row { line-height: 1.2; }
         }
       `}</style>
     </div>
