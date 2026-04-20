@@ -80,11 +80,12 @@ function buildPrintRow(
   return result
 }
 
-// 행 수 → 행 높이·폰트·패딩 계산 (zoom 없이 A4 꽉 채움)
+// 행 수 → 행 높이·폰트·패딩 계산 (exec-band가 fontSize+2px이므로 band 기준 패딩 결정)
 function calcLayout(rowCount: number, targetPx: number) {
-  const rowH    = Math.min(60, targetPx / rowCount)        // 행 높이 (최대 60px)
-  const fontSize = Math.max(7, +(rowH * 0.55).toFixed(1)) // 폰트 (최소 7px)
-  const padV    = +Math.max(1, (rowH - fontSize * 1.2) / 2).toFixed(1)
+  const rowH     = Math.min(60, targetPx / rowCount)
+  const fontSize = Math.max(7, +(rowH * 0.50).toFixed(1))
+  const bandFont = fontSize + 2
+  const padV     = +Math.max(1, (rowH - bandFont * 1.2) / 2).toFixed(1)
   return { rowH: +rowH.toFixed(1), fontSize, padV }
 }
 
