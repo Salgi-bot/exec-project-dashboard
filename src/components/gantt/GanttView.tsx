@@ -289,8 +289,8 @@ export function GanttView() {
         <div style={{ minWidth: totalWidth + 'px', width: totalWidth + 'px' }}>
 
           {/* 헤더 1: 연도 */}
-          <div className="flex sticky top-0 z-20 bg-slate-800 text-white" style={{ height: ROW_H + 'px' }}>
-            <div className="shrink-0 bg-slate-800 sticky left-0 z-30 border-r border-slate-600 flex items-center px-2 text-xs font-semibold text-slate-400"
+          <div className="flex sticky top-0 z-30 bg-slate-800 text-white" style={{ height: ROW_H + 'px' }}>
+            <div className="shrink-0 bg-slate-800 sticky left-0 z-40 border-r border-slate-600 flex items-center px-2 text-xs font-semibold text-slate-400"
               style={{ width: NAME_W + ASSIGNEE_W + 'px' }}>연도</div>
             {yearGroups.map((g, i) => (
               <div key={i}
@@ -301,12 +301,12 @@ export function GanttView() {
           </div>
 
           {/* 헤더 2: 월 */}
-          <div className="flex sticky z-20 bg-slate-700 text-white" style={{ top: ROW_H + 'px', height: ROW_H + 'px' }}>
-            <div className="shrink-0 flex items-center px-2 text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky left-0 z-30"
+          <div className="flex sticky z-30 bg-slate-700 text-white" style={{ top: ROW_H + 'px', height: ROW_H + 'px' }}>
+            <div className="shrink-0 flex items-center px-2 text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky left-0 z-40"
               style={{ width: NAME_W + 'px' }}>
               프로젝트 / 담당임원
             </div>
-            <div className="shrink-0 flex items-center justify-center text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky z-30"
+            <div className="shrink-0 flex items-center justify-center text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky z-40"
               style={{ width: ASSIGNEE_W + 'px', left: NAME_W + 'px' }}>
               담당자
             </div>
@@ -322,8 +322,8 @@ export function GanttView() {
           </div>
 
           {/* 헤더 3: 주차 */}
-          <div className="flex sticky z-20 bg-slate-600 text-white" style={{ top: ROW_H * 2 + 'px', height: ROW_H - 4 + 'px' }}>
-            <div className="shrink-0 border-r border-slate-500 bg-slate-600 sticky left-0 z-30"
+          <div className="flex sticky z-30 bg-slate-600 text-white" style={{ top: ROW_H * 2 + 'px', height: ROW_H - 4 + 'px' }}>
+            <div className="shrink-0 border-r border-slate-500 bg-slate-600 sticky left-0 z-40"
               style={{ width: NAME_W + ASSIGNEE_W + 'px' }} />
             {monthLabels.map((_, mi) =>
               [1, 2, 3, 4].map(w => (
