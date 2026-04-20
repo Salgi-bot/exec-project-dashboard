@@ -158,8 +158,9 @@ export function ReportView() {
   // border 1px/행 ≈ 0.264mm
   const p1Rows = page1Execs.reduce((s, { projects }) => s + 1 + projects.length, 0)
   const p2Rows = page2Execs.reduce((s, { projects }) => s + 1 + projects.length, 0)
-  const p1RowHMm = p1Rows > 0 ? (261 - p1Rows * 0.264) / p1Rows : 8
-  const p2RowHMm = p2Rows > 0 ? (267 - p2Rows * 0.264) / p2Rows : 8
+  // 실제 overhead(패딩·테두리) 보정 후 5% 안전 여유 적용
+  const p1RowHMm = p1Rows > 0 ? (261 - p1Rows * 0.264) / p1Rows * 0.95 : 8
+  const p2RowHMm = p2Rows > 0 ? (267 - p2Rows * 0.264) / p2Rows * 0.95 : 8
   // 폰트: 행 높이의 38% (여백 포함 1줄 기준), 6.5~11px 범위
   const p1Font = +Math.min(11, Math.max(6.5, p1RowHMm * 3.78 * 0.38)).toFixed(1)
   const p2Font = +Math.min(11, Math.max(6.5, p2RowHMm * 3.78 * 0.38)).toFixed(1)
@@ -372,8 +373,14 @@ export function ReportView() {
           .report-project { padding: 1px 3px; font-size: var(--prt-font, 7.5px); font-weight: 600; line-height: 1.2; overflow: hidden; }
           .report-cell { padding: 1px 2px; font-size: var(--prt-cell-font, 7px); font-weight: 500; line-height: 1.2; overflow: hidden; }
           .report-band td { padding: 1px 5px; font-size: var(--prt-font, 7.5px); line-height: 1.2; font-weight: 700; overflow: hidden; }
+          /* tr에 height는 min-height로만 동작 → td에 직접 설정해야 강제 */
           .report-row { line-height: 1.2; height: var(--row-h, auto); }
           .exec-band { height: var(--row-h, auto); }
+          .report-row td, .exec-band td {
+            height: var(--row-h, auto);
+            max-height: var(--row-h, none);
+            overflow: hidden !important;
+          }
         }
       `}</style>
     </div>
