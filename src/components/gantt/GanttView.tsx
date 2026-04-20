@@ -348,11 +348,11 @@ export function GanttView() {
               <div key={exec.id}>
                 {/* 임원 그룹 헤더 */}
                 <div
-                  className="flex items-center bg-gray-100 border-b border-gray-200 sticky z-10"
+                  className="flex items-center bg-gray-100 border-b border-gray-200 sticky z-20"
                   style={{ top: HEADER_H + 'px', height: ROW_H + 'px' }}
                 >
                   <div
-                    className="shrink-0 px-2 flex items-center gap-1.5 h-full sticky left-0 z-10 bg-gray-100"
+                    className="shrink-0 px-2 flex items-center gap-1.5 h-full sticky left-0 z-20 bg-gray-100"
                     style={{ width: NAME_W + ASSIGNEE_W + 'px' }}
                   >
                     <button
