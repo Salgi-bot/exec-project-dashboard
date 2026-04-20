@@ -160,14 +160,18 @@ export function ReportView() {
   const P1_TARGET = 269 * 3.78  // ≈ 1017px
   const P2_TARGET = 277 * 3.78  // ≈ 1047px
 
+  // screen CSS(13px font) → print CSS(7.5px font) 렌더 높이 차이 보정계수
+  // PDF 실측: screen height 기준 zoom=1 시 약 65% 채워짐 → ×1.5 보정
+  const PRINT_SCALE = 1.5
+
   useLayoutEffect(() => {
     if (table1Ref.current) {
       const h = table1Ref.current.scrollHeight
-      if (h > 0) setZoom1(+(Math.min(1, P1_TARGET / h)).toFixed(3))
+      if (h > 0) setZoom1(+(Math.min(3, (P1_TARGET / h) * PRINT_SCALE)).toFixed(3))
     }
     if (table2Ref.current) {
       const h = table2Ref.current.scrollHeight
-      if (h > 0) setZoom2(+(Math.min(1, P2_TARGET / h)).toFixed(3))
+      if (h > 0) setZoom2(+(Math.min(3, (P2_TARGET / h) * PRINT_SCALE)).toFixed(3))
     }
   }, [execRowsData, printMonths])
 
