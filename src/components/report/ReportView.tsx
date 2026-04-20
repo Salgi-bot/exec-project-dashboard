@@ -162,7 +162,7 @@ export function ReportView() {
 
   // screen CSS(13px font) → print CSS(7.5px font) 렌더 높이 차이 보정계수
   // PDF 실측: screen height 기준 zoom=1 시 약 65% 채워짐 → ×1.5 보정
-  const PRINT_SCALE = 1.35
+  const PRINT_SCALE = 3.0
 
   useLayoutEffect(() => {
     if (table1Ref.current) {
