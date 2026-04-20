@@ -415,6 +415,9 @@ export function ReportView() {
           flexDirection: 'column',
           gap: 20,
           alignItems: 'flex-start',
+          transform: 'scale(1.5)',
+          transformOrigin: 'top left',
+          marginBottom: A4_CONTENT_H_PX * 0.5 + 20,
         }}
       >
         <div
