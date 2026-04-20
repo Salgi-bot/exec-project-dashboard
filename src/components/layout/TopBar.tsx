@@ -123,18 +123,6 @@ export function TopBar({ onMenuClick, syncStatus, lastSynced }: Props) {
         />
 
         <span title={syncTip} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: syncDot, flexShrink: 0 }} />
-        {sheet && (
-          <button
-            onClick={handleExcelExport}
-            className="px-3 py-1.5 text-white rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
-            style={{ backgroundColor: 'var(--ci-green)' }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--ci-green-dark)' }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-green)' }}
-            title="현재 데이터를 Excel로 다운로드"
-          >
-            Excel
-          </button>
-        )}
       </div>
     </div>
   )
