@@ -110,10 +110,14 @@ async function gistPatch(content: string): Promise<{ etag: string | null; update
 // ── 저장 ──────────────────────────────────────────────────
 async function saveToGist(retries = 2): Promise<boolean> {
   if (!gistAvailable()) { notify('error'); return false }
+  const persisted = getPersistedState()
+  if (!persisted.fileName || Object.keys(persisted.sheets ?? {}).length === 0) {
+    return false  // Excel 미임포트 상태는 저장 안 함
+  }
   for (let i = 0; i <= retries; i++) {
     try {
       const content = JSON.stringify({
-        data:       getPersistedState(),
+        data:       persisted,
         updated_at: new Date().toISOString(),
       })
       const { etag, updatedAt } = await gistPatch(content)
@@ -143,7 +147,8 @@ export async function loadFromCloud(): Promise<boolean> {
     if (notModified) return true
     currentETag        = etag
     lastKnownUpdatedAt = updatedAt
-    if (state) {
+    const hasData = state?.fileName && Object.keys(state?.sheets ?? {}).length > 0
+    if (hasData) {
       useAppStore.setState(syncExecutiveTitles(state))
       hasPendingChanges = false
       notify('saved', new Date())
@@ -166,8 +171,9 @@ async function checkForRemoteUpdates(): Promise<void> {
     if (!state) return
 
     const isRemoteNewer = updatedAt !== lastKnownUpdatedAt
+    const hasData = state?.fileName && Object.keys(state?.sheets ?? {}).length > 0
 
-    if (!isRemoteNewer) return
+    if (!isRemoteNewer || !hasData) return
 
     if (hasPendingChanges) {
       // 충돌: 내 변경사항 + 원격 변경사항 동시 존재
