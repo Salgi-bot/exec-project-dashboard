@@ -6,9 +6,13 @@ import { exportToExcel } from '@/utils/excelExport'
 
 interface Props {
   onMenuClick: () => void
+  onSync: () => void
+  syncLabel: string
+  syncColor: string
+  syncBusy: boolean
 }
 
-export function TopBar({ onMenuClick }: Props) {
+export function TopBar({ onMenuClick, onSync, syncLabel, syncColor, syncBusy }: Props) {
   const selectedExecutiveIds = useAppStore(s => s.selectedExecutiveIds)
   const toggleExecutive = useAppStore(s => s.toggleExecutive)
   const setAllExecutives = useAppStore(s => s.setAllExecutives)
@@ -115,6 +119,15 @@ export function TopBar({ onMenuClick }: Props) {
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-32 md:w-48 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
 
+        <button
+          onClick={onSync}
+          disabled={syncBusy}
+          className="px-2 py-1 rounded text-xs font-medium transition-colors border whitespace-nowrap disabled:opacity-50"
+          style={{ borderColor: syncColor, color: syncColor }}
+          title="클라우드 동기화 (불러오기 + 저장)"
+        >
+          ☁ {syncLabel}
+        </button>
         <FileImportButton />
         {sheet && (
           <button

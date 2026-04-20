@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useLayoutEffect } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -88,6 +88,7 @@ export function ReportView() {
   const execOrderMap = useAppStore(s => s.execOrder)
   const printRef    = useRef<HTMLDivElement>(null)
   const [generating, setGenerating] = useState(false)
+  const [printZoom, setPrintZoom] = useState(1)
 
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
@@ -148,15 +149,27 @@ export function ReportView() {
   // 2페이지 꽉 채우기
   // A4 세로: 297 - 20margin = 277mm/page. 배너 10mm + thead 8mm = 18mm 차감
   // 페이지1 tbody = 259mm, 페이지2 tbody = 269mm (배너 없음, thead 반복)
-  // 총 2페이지 tbody ≈ 528mm
+  // 총 2페이지 tbody ≈ 528mm (border 1px/행 보정 포함)
   const totalRows = execRowsData.reduce((sum, e) => sum + e.projects.length + 1, 0)
-  const tbodyMm = 528
+  const borderOverheadMm = totalRows / 3.78  // collapsed border 1px per row
+  const tbodyMm = 528 - borderOverheadMm
   const rowHeightMm = totalRows > 0 ? tbodyMm / totalRows : 8
   // 행 안에 2줄까지 들어가도록 폰트 제한 (1mm ≈ 3.78px, 행당 2줄 = 폰트×2.4 = 5mm 이하)
   const maxFontPx = Math.floor((rowHeightMm * 3.78) / 2.4)
   const bodyFont = Math.max(6.5, Math.min(9, maxFontPx))
   const cellFont = Math.max(6, bodyFont - 0.5)
   const headerFont = Math.max(7, Math.min(10, bodyFont + 1))
+
+  // 실제 렌더 후 높이 측정 → zoom으로 정확히 2페이지에 맞춤
+  useLayoutEffect(() => {
+    if (!printRef.current) return
+    const h = printRef.current.scrollHeight
+    if (h <= 0) return
+    // 2 A4 세로 (10mm 마진): 2 × 277mm × 3.78px/mm ≈ 2094px
+    const targetPx = 2 * 277 * 3.78
+    const zoom = Math.min(1, Math.max(0.55, targetPx / h))
+    setPrintZoom(zoom)
+  }, [execRowsData, printMonths])
 
   return (
     <div className="p-6">
@@ -183,11 +196,11 @@ export function ReportView() {
       </div>
 
       <div ref={printRef} className="bg-white print-area" style={{
-        // 인쇄 시만 적용될 CSS 변수 (화면에서는 .report-* 기본값 사용)
         ['--print-body-font' as string]: `${bodyFont}px`,
         ['--print-cell-font' as string]: `${cellFont}px`,
         ['--print-header-font' as string]: `${headerFont}px`,
         ['--print-row-h' as string]: `${rowHeightMm}mm`,
+        ['--print-zoom' as string]: printZoom,
       }}>
         {/* 제목만 */}
         <div className="px-2 py-1 border-b border-gray-400 print-no-break">
@@ -287,7 +300,7 @@ export function ReportView() {
           main { display: block !important; overflow: visible !important; height: auto !important; background: white !important; }
           .no-print { display: none !important; }
 
-          .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; zoom: var(--print-zoom, 1); transform-origin: top left; }
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; width: 100% !important; }
           thead { display: table-header-group; }

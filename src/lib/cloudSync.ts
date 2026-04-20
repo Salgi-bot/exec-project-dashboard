@@ -4,7 +4,16 @@ import { EXECUTIVE_MAP } from '@/constants/executives'
 
 const STATE_ID = 'main'
 
-// 저장된 sheet 내 executive 정보를 최신 상수와 동기화 (직함 변경 반영)
+export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+let _onStatusChange: ((s: SyncStatus, lastAt?: Date) => void) | null = null
+export function onSyncStatusChange(cb: (s: SyncStatus, lastAt?: Date) => void) {
+  _onStatusChange = cb
+}
+function notify(s: SyncStatus, at?: Date) {
+  _onStatusChange?.(s, at)
+}
+
 function syncExecutiveTitles(state: ReturnType<typeof useAppStore.getState>) {
   if (!state.sheets) return state
   const sheets = { ...state.sheets }
@@ -33,29 +42,80 @@ function getPersistedState() {
     projectOrderMap: s.projectOrderMap,
     deletedProjectIds: s.deletedProjectIds,
     projectMetaEdits: s.projectMetaEdits,
+    execOrder: s.execOrder,
+  }
+}
+
+async function saveToCloud(retries = 2): Promise<boolean> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const { error } = await supabase.from('app_state').upsert({
+        id: STATE_ID,
+        data: getPersistedState(),
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+      notify('saved', new Date())
+      return true
+    } catch (e) {
+      if (i === retries) {
+        console.warn('[CloudSync] 저장 실패:', e)
+        notify('error')
+        return false
+      }
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+    }
+  }
+  return false
+}
+
+export async function forceSave(): Promise<boolean> {
+  notify('saving')
+  return saveToCloud(1)
+}
+
+export async function loadFromCloud(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('app_state')
+      .select('data')
+      .eq('id', STATE_ID)
+      .single()
+    if (error) throw error
+    if (data?.data) {
+      useAppStore.setState(syncExecutiveTitles(data.data))
+      notify('saved', new Date())
+      return true
+    }
+    return false
+  } catch (e) {
+    console.warn('[CloudSync] 불러오기 실패:', e)
+    notify('error')
+    return false
   }
 }
 
 export async function initCloudSync(): Promise<void> {
-  // Supabase에서 최신 상태 로드
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('app_state')
       .select('data')
       .eq('id', STATE_ID)
       .single()
 
+    if (error) console.warn('[CloudSync] 초기 로드 실패:', error)
+
     if (data?.data) {
       useAppStore.setState(syncExecutiveTitles(data.data))
+      notify('saved', new Date())
     } else {
-      // 로컬 상태도 동기화
       useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
     }
-  } catch {
+  } catch (e) {
+    console.warn('[CloudSync] 초기화 실패:', e)
     useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
   }
 
-  // 상태 변경 시 Supabase에 저장 (1.5초 디바운스)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let prevSnapshot = JSON.stringify(getPersistedState())
 
@@ -64,17 +124,8 @@ export async function initCloudSync(): Promise<void> {
     if (next === prevSnapshot) return
     prevSnapshot = next
 
+    notify('saving')
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(async () => {
-      try {
-        await supabase.from('app_state').upsert({
-          id: STATE_ID,
-          data: getPersistedState(),
-          updated_at: new Date().toISOString(),
-        })
-      } catch {
-        // silent fail
-      }
-    }, 1500)
+    saveTimer = setTimeout(() => saveToCloud(), 1500)
   })
 }
