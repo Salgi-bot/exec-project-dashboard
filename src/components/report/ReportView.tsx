@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useLayoutEffect } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -84,8 +84,12 @@ export function ReportView() {
   const sheet        = useActiveSheet()
   const allProjects  = useFilteredProjects()
   const execOrderMap = useAppStore(s => s.execOrder)
-  const printRef     = useRef<HTMLDivElement>(null)
+  const printRef  = useRef<HTMLDivElement>(null)
+  const table1Ref = useRef<HTMLDivElement>(null)
+  const table2Ref = useRef<HTMLDivElement>(null)
   const [generating, setGenerating] = useState(false)
+  const [zoom1, setZoom1] = useState(1)
+  const [zoom2, setZoom2] = useState(1)
 
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
@@ -151,19 +155,21 @@ export function ReportView() {
   const page1Execs = execRowsData.slice(0, splitIdx)
   const page2Execs = execRowsData.slice(splitIdx)
 
-  // 페이지별 행 수 → A4 가용 높이 균등 분배
-  // @page margin 10mm → 가용 277mm
-  // 페이지1: 제목 6mm + 2행 thead 10mm = 261mm 가용
-  // 페이지2: 2행 thead 10mm만 차감 = 267mm 가용
-  // border 1px/행 ≈ 0.264mm
-  const p1Rows = page1Execs.reduce((s, { projects }) => s + 1 + projects.length, 0)
-  const p2Rows = page2Execs.reduce((s, { projects }) => s + 1 + projects.length, 0)
-  // 실제 overhead(패딩·테두리) 보정 후 5% 안전 여유 적용
-  const p1RowHMm = p1Rows > 0 ? (261 - p1Rows * 0.264) / p1Rows * 0.95 : 8
-  const p2RowHMm = p2Rows > 0 ? (267 - p2Rows * 0.264) / p2Rows * 0.95 : 8
-  // 폰트: 행 높이의 38% (여백 포함 1줄 기준), 6.5~11px 범위
-  const p1Font = +Math.min(11, Math.max(6.5, p1RowHMm * 3.78 * 0.38)).toFixed(1)
-  const p2Font = +Math.min(11, Math.max(6.5, p2RowHMm * 3.78 * 0.38)).toFixed(1)
+  // 각 테이블의 실제 화면 높이 측정 → A4 가용 높이로 zoom 계산
+  // @page margin 10mm → 가용 277mm | 페이지1: 제목 8mm 차감 → 269mm
+  const P1_TARGET = 269 * 3.78  // ≈ 1017px
+  const P2_TARGET = 277 * 3.78  // ≈ 1047px
+
+  useLayoutEffect(() => {
+    if (table1Ref.current) {
+      const h = table1Ref.current.scrollHeight
+      if (h > 0) setZoom1(+(Math.min(1, P1_TARGET / h)).toFixed(3))
+    }
+    if (table2Ref.current) {
+      const h = table2Ref.current.scrollHeight
+      if (h > 0) setZoom2(+(Math.min(1, P2_TARGET / h)).toFixed(3))
+    }
+  }, [execRowsData, printMonths])
 
   // 연도 그룹 (thead 첫 번째 행)
   const yearGroups = useMemo(() => {
@@ -274,21 +280,19 @@ export function ReportView() {
       {/* 출력 검증 패널 (화면 전용) */}
       <div className="no-print mb-3 grid grid-cols-2 gap-2 text-xs font-mono">
         {[
-          { label: '1페이지', rows: p1Rows, rowH: p1RowHMm, avail: 261, font: p1Font },
-          { label: '2페이지', rows: p2Rows, rowH: p2RowHMm, avail: 267, font: p2Font },
-        ].map(({ label, rows, rowH, avail, font }) => {
-          const used = +(rowH * rows).toFixed(1)
-          const ok = used <= avail
+          { label: '1페이지', zoom: zoom1, target: P1_TARGET },
+          { label: '2페이지', zoom: zoom2, target: P2_TARGET },
+        ].map(({ label, zoom, target }) => {
+          const ok = zoom >= 0.55
           return (
             <div key={label} className={`rounded-lg border px-3 py-2 ${ok ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}>
               <div className="font-bold mb-1" style={{ color: ok ? '#166534' : '#991b1b' }}>
                 {ok ? '✓' : '✗'} {label}
               </div>
               <div className="text-gray-600 space-y-0.5">
-                <div>행 수: <b>{rows}</b>행</div>
-                <div>행 높이: <b>{rowH.toFixed(2)}mm</b></div>
-                <div>사용 높이: <b style={{ color: ok ? '#166534' : '#991b1b' }}>{used}mm</b> / 가용 {avail}mm</div>
-                <div>폰트: <b>{font}px</b> ({(font * 0.75).toFixed(1)}pt)</div>
+                <div>zoom: <b style={{ color: ok ? '#166534' : '#991b1b' }}>{(zoom * 100).toFixed(1)}%</b></div>
+                <div>가용: <b>{(target / 3.78).toFixed(0)}mm</b></div>
+                <div>{zoom < 0.55 ? '⚠ 너무 많은 행 — 분할 조정 필요' : zoom === 1 ? '여유 있음' : 'A4 꽉 채움'}</div>
               </div>
             </div>
           )
@@ -301,12 +305,9 @@ export function ReportView() {
           <h1 className="font-bold text-gray-800 report-title">■ 임원회의 PROJECT 진행일정표</h1>
         </div>
 
-        {/* 1페이지 테이블 */}
-        <div className="px-2 pt-1" style={{
-          ['--row-h' as string]: `${p1RowHMm.toFixed(2)}mm`,
-          ['--prt-font' as string]: `${p1Font}px`,
-          ['--prt-cell-font' as string]: `${Math.max(6, p1Font - 0.5)}px`,
-        }}>
+        {/* 1페이지 테이블 — zoom으로 A4 꽉 채움 */}
+        <div ref={table1Ref} className="px-2 pt-1 table-section"
+          style={{ ['--zoom' as string]: zoom1 }}>
           {renderTable(page1Execs)}
         </div>
 
@@ -314,11 +315,8 @@ export function ReportView() {
         {page2Execs.length > 0 && (
           <>
             <div className="page-break" />
-            <div className="px-2 pt-1" style={{
-              ['--row-h' as string]: `${p2RowHMm.toFixed(2)}mm`,
-              ['--prt-font' as string]: `${p2Font}px`,
-              ['--prt-cell-font' as string]: `${Math.max(6, p2Font - 0.5)}px`,
-            }}>
+            <div ref={table2Ref} className="px-2 pt-1 table-section"
+              style={{ ['--zoom' as string]: zoom2 }}>
               {renderTable(page2Execs)}
             </div>
           </>
@@ -356,31 +354,25 @@ export function ReportView() {
           main { display: block !important; overflow: visible !important; height: auto !important; background: white !important; }
           .no-print { display: none !important; }
 
-          /* zoom 없음 — 각 테이블이 독립 thead를 가지므로 table-header-group 불필요 */
           .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-          /* 강제 페이지 분할 */
+          /* 페이지 분할 */
           .page-break { page-break-after: always; break-after: page; height: 0; margin: 0; padding: 0; }
+
+          /* 테이블별 zoom — 2테이블 구조라 thead 반복 문제 없음 */
+          .table-section { zoom: var(--zoom, 1); transform-origin: top left; -webkit-print-color-adjust: exact; }
 
           .print-no-break { page-break-inside: avoid; break-inside: avoid; }
           table { page-break-inside: auto; width: 100% !important; }
-          thead { display: table-header-group; }
           tr { page-break-inside: avoid; break-inside: avoid; }
 
           .report-title { font-size: 11px; }
-          .report-year-th { font-size: var(--prt-font, 8px); font-weight: 800; }
-          .report-th { padding: 2px 3px; font-size: var(--prt-font, 7.5px); font-weight: 700; }
-          .report-project { padding: 1px 3px; font-size: var(--prt-font, 7.5px); font-weight: 600; line-height: 1.2; overflow: hidden; }
-          .report-cell { padding: 1px 2px; font-size: var(--prt-cell-font, 7px); font-weight: 500; line-height: 1.2; overflow: hidden; }
-          .report-band td { padding: 1px 5px; font-size: var(--prt-font, 7.5px); line-height: 1.2; font-weight: 700; overflow: hidden; }
-          /* tr에 height는 min-height로만 동작 → td에 직접 설정해야 강제 */
-          .report-row { line-height: 1.2; height: var(--row-h, auto); }
-          .exec-band { height: var(--row-h, auto); }
-          .report-row td, .exec-band td {
-            height: var(--row-h, auto);
-            max-height: var(--row-h, none);
-            overflow: hidden !important;
-          }
+          .report-year-th { font-size: 8px; font-weight: 800; }
+          .report-th { padding: 2px 3px; font-size: 7.5px; font-weight: 700; }
+          .report-project { padding: 1px 3px; font-size: 7.5px; font-weight: 600; line-height: 1.2; }
+          .report-cell { padding: 1px 2px; font-size: 7px; font-weight: 500; line-height: 1.2; }
+          .report-band td { padding: 1px 5px; font-size: 7.5px; line-height: 1.2; font-weight: 700; }
+          .report-row { line-height: 1.2; }
         }
       `}</style>
     </div>
