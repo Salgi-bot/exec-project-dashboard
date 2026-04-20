@@ -1,30 +1,23 @@
+import { supabase } from './supabase'
 import { useAppStore } from '@/store/appStore'
 import { EXECUTIVE_MAP } from '@/constants/executives'
 
-const GIST_ID    = import.meta.env.VITE_GIST_ID    as string | undefined
-const GIST_TOKEN = import.meta.env.VITE_GIST_TOKEN as string | undefined
-const GIST_FILE  = 'exec_dashboard_state.json'
-const POLL_MS    = 30_000
+const STATE_ID = 'main'
 
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-// ── 콜백 레지스트리 ──────────────────────────────────────────
 let _onStatus:       ((s: SyncStatus, at?: Date) => void) | null = null
 let _onRemoteUpdate: (() => void) | null = null
 let _onConflict:     ((keepMine: () => void, useTheirs: () => void) => void) | null = null
 
-export function onSyncStatusChange(cb: typeof _onStatus)    { _onStatus       = cb }
-export function onRemoteUpdated(cb: () => void)              { _onRemoteUpdate = cb }
-export function onConflictDetected(cb: typeof _onConflict)  { _onConflict     = cb }
+export function onSyncStatusChange(cb: typeof _onStatus)   { _onStatus       = cb }
+export function onRemoteUpdated(cb: () => void)             { _onRemoteUpdate = cb }
+export function onConflictDetected(cb: typeof _onConflict) { _onConflict     = cb }
 
 function notify(s: SyncStatus, at?: Date) { _onStatus?.(s, at) }
 
-// ── 상태 추적 ──────────────────────────────────────────────
-let currentETag:         string | null = null
-let lastKnownUpdatedAt:  string | null = null
-let hasPendingChanges                  = false
+let hasPendingChanges = false
 
-// ── exec title 동기화 ──────────────────────────────────────
 function syncExecutiveTitles(state: ReturnType<typeof useAppStore.getState>) {
   if (!state.sheets) return state
   const sheets = { ...state.sheets }
@@ -57,73 +50,24 @@ function getPersistedState() {
   }
 }
 
-function gistAvailable() { return !!(GIST_ID && GIST_TOKEN) }
-
-// ── GitHub Gist API ────────────────────────────────────────
-interface GistGetResult {
-  notModified: boolean
-  etag:        string | null
-  updatedAt:   string | null
-  state:       ReturnType<typeof useAppStore.getState> | null
-}
-
-async function gistGet(): Promise<GistGetResult> {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${GIST_TOKEN}`,
-    Accept:        'application/vnd.github+json',
-  }
-  if (currentETag) headers['If-None-Match'] = currentETag
-
-  const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers })
-
-  if (res.status === 304) {
-    return { notModified: true, etag: currentETag, updatedAt: lastKnownUpdatedAt, state: null }
-  }
-  if (!res.ok) throw new Error(`GitHub GET ${res.status}`)
-
-  const etag      = res.headers.get('ETag')
-  const gist      = await res.json()
-  const updatedAt = gist.updated_at as string
-  const raw       = gist.files?.[GIST_FILE]?.content as string | undefined
-  const parsed    = raw ? JSON.parse(raw) : null
-  const state     = parsed?.data ?? parsed
-
-  return { notModified: false, etag, updatedAt, state: state?.sheets ? state : null }
-}
-
-async function gistPatch(content: string): Promise<{ etag: string | null; updatedAt: string }> {
-  const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization:  `Bearer ${GIST_TOKEN}`,
-      Accept:         'application/vnd.github+json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ files: { [GIST_FILE]: { content } } }),
-  })
-  if (!res.ok) throw new Error(`GitHub PATCH ${res.status}: ${await res.text()}`)
-  const etag = res.headers.get('ETag')
-  const gist = await res.json()
-  return { etag, updatedAt: gist.updated_at as string }
+function hasData(state: ReturnType<typeof getPersistedState> | null) {
+  return !!(state?.fileName && Object.keys(state?.sheets ?? {}).length > 0)
 }
 
 // ── 저장 ──────────────────────────────────────────────────
-async function saveToGist(retries = 2): Promise<boolean> {
-  if (!gistAvailable()) { notify('error'); return false }
+async function saveToSupabase(retries = 2): Promise<boolean> {
   const persisted = getPersistedState()
-  if (!persisted.fileName || Object.keys(persisted.sheets ?? {}).length === 0) {
-    return false  // Excel 미임포트 상태는 저장 안 함
-  }
+  if (!hasData(persisted)) return false
+
   for (let i = 0; i <= retries; i++) {
     try {
-      const content = JSON.stringify({
+      const { error } = await supabase.from('app_state').upsert({
+        id:         STATE_ID,
         data:       persisted,
         updated_at: new Date().toISOString(),
       })
-      const { etag, updatedAt } = await gistPatch(content)
-      currentETag        = etag
-      lastKnownUpdatedAt = updatedAt
-      hasPendingChanges  = false
+      if (error) throw error
+      hasPendingChanges = false
       notify('saved', new Date())
       return true
     } catch (e) {
@@ -134,22 +78,21 @@ async function saveToGist(retries = 2): Promise<boolean> {
   return false
 }
 
-// ── 공개 API ──────────────────────────────────────────────
 export async function forceSave(): Promise<boolean> {
   notify('saving')
-  return saveToGist(1)
+  return saveToSupabase(1)
 }
 
 export async function loadFromCloud(): Promise<boolean> {
-  if (!gistAvailable()) { notify('error'); return false }
   try {
-    const { notModified, etag, updatedAt, state } = await gistGet()
-    if (notModified) return true
-    currentETag        = etag
-    lastKnownUpdatedAt = updatedAt
-    const hasData = state?.fileName && Object.keys(state?.sheets ?? {}).length > 0
-    if (hasData) {
-      useAppStore.setState(syncExecutiveTitles(state))
+    const { data, error } = await supabase
+      .from('app_state')
+      .select('data')
+      .eq('id', STATE_ID)
+      .single()
+    if (error) throw error
+    if (hasData(data?.data)) {
+      useAppStore.setState(syncExecutiveTitles(data.data))
       hasPendingChanges = false
       notify('saved', new Date())
       return true
@@ -162,64 +105,60 @@ export async function loadFromCloud(): Promise<boolean> {
   }
 }
 
-// ── 폴링 (30초마다 변경 확인) ─────────────────────────────
-async function checkForRemoteUpdates(): Promise<void> {
-  if (!gistAvailable()) return
-  try {
-    const { notModified, etag, updatedAt, state } = await gistGet()
-    if (notModified) return           // ETag 동일 → 변경 없음
-    if (!state) return
+// ── Realtime 구독 (다른 사용자 변경 즉시 반영) ─────────────
+export function startPolling(): () => void {
+  const channel = supabase
+    .channel('app_state_changes')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'app_state', filter: `id=eq.${STATE_ID}` },
+      (payload) => {
+        const remoteState = payload.new?.data
+        if (!hasData(remoteState)) return
 
-    const isRemoteNewer = updatedAt !== lastKnownUpdatedAt
-    const hasData = state?.fileName && Object.keys(state?.sheets ?? {}).length > 0
-
-    if (!isRemoteNewer || !hasData) return
-
-    if (hasPendingChanges) {
-      // 충돌: 내 변경사항 + 원격 변경사항 동시 존재
-      _onConflict?.(
-        async () => {
-          // 내 것 유지 → 원격 덮어쓰기
-          await saveToGist(1)
-        },
-        () => {
-          // 원격 것 사용
-          currentETag        = etag
-          lastKnownUpdatedAt = updatedAt
-          hasPendingChanges  = false
-          useAppStore.setState(syncExecutiveTitles(state))
+        if (hasPendingChanges) {
+          _onConflict?.(
+            async () => { await saveToSupabase(1) },
+            () => {
+              hasPendingChanges = false
+              useAppStore.setState(syncExecutiveTitles(remoteState))
+              notify('saved', new Date())
+              _onRemoteUpdate?.()
+            }
+          )
+        } else {
+          useAppStore.setState(syncExecutiveTitles(remoteState))
           notify('saved', new Date())
           _onRemoteUpdate?.()
         }
-      )
-    } else {
-      // 충돌 없음 → 자동으로 원격 데이터 반영
-      currentETag        = etag
-      lastKnownUpdatedAt = updatedAt
-      useAppStore.setState(syncExecutiveTitles(state))
-      notify('saved', new Date())
-      _onRemoteUpdate?.()
-    }
-  } catch (e) {
-    console.warn('[CloudSync] 폴링 실패:', e)
-  }
-}
+      }
+    )
+    .subscribe()
 
-export function startPolling(): () => void {
-  const id = setInterval(checkForRemoteUpdates, POLL_MS)
-  return () => clearInterval(id)
+  return () => { supabase.removeChannel(channel) }
 }
 
 // ── 초기화 ────────────────────────────────────────────────
 export async function initCloudSync(): Promise<void> {
-  if (!gistAvailable()) {
-    console.warn('[CloudSync] VITE_GIST_TOKEN / VITE_GIST_ID 환경변수 없음')
-    useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
-    return
-  }
+  try {
+    const { data, error } = await supabase
+      .from('app_state')
+      .select('data')
+      .eq('id', STATE_ID)
+      .single()
 
-  const loaded = await loadFromCloud()
-  if (!loaded) useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
+    if (error) console.warn('[CloudSync] 초기 로드 실패:', error)
+
+    if (data && hasData(data.data)) {
+      useAppStore.setState(syncExecutiveTitles(data.data))
+      notify('saved', new Date())
+    } else {
+      useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
+    }
+  } catch (e) {
+    console.warn('[CloudSync] 초기화 실패:', e)
+    useAppStore.setState(syncExecutiveTitles(useAppStore.getState()))
+  }
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let prevSnapshot = JSON.stringify(getPersistedState())
@@ -231,6 +170,6 @@ export async function initCloudSync(): Promise<void> {
     hasPendingChanges = true
     notify('saving')
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => saveToGist(), 1500)
+    saveTimer = setTimeout(() => saveToSupabase(), 1500)
   })
 }
