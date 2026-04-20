@@ -162,7 +162,7 @@ export function ReportView() {
 
   // screen CSS(13px font) → print CSS(7.5px font) 렌더 높이 차이 보정계수
   // PDF 실측: screen height 기준 zoom=1 시 약 65% 채워짐 → ×1.5 보정
-  const PRINT_SCALE = 1.5
+  const PRINT_SCALE = 1.35
 
   useLayoutEffect(() => {
     if (table1Ref.current) {
@@ -373,9 +373,9 @@ export function ReportView() {
           .report-title { font-size: 11px; }
           .report-year-th { font-size: 8px; font-weight: 800; }
           .report-th { padding: 2px 3px; font-size: 7.5px; font-weight: 700; }
-          .report-project { padding: 1px 3px; font-size: 7.5px; font-weight: 600; line-height: 1.2; }
-          .report-cell { padding: 1px 2px; font-size: 7px; font-weight: 500; line-height: 1.2; }
-          .report-band td { padding: 1px 5px; font-size: 7.5px; line-height: 1.2; font-weight: 700; }
+          .report-project { padding: 1px 3px; font-size: 7px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; }
+          .report-cell { padding: 1px 2px; font-size: 7px; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; }
+          .report-band td { padding: 1px 5px; font-size: 8.5px; line-height: 1.2; font-weight: 700; white-space: nowrap; overflow: hidden; }
           .report-row { line-height: 1.2; }
         }
       `}</style>
