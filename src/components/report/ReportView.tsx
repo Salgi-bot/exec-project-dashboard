@@ -49,51 +49,37 @@ function buildPrintRow(
 ): { text: string; colSpan: number; category: StatusCategory }[] {
   const startAbs = printStartMonth * 4
   const endAbs   = (printStartMonth + printMonths) * 4
-
   const origins = weekStatuses
     .filter(ws => ws.colSpan !== 0)
     .filter(ws => ws.text !== '' && ws.text != null)
     .map(ws => ({ ...ws, abs: ws.monthIndex * 4 + ws.weekIndex }))
     .sort((a, b) => a.abs - b.abs)
-
   const result: { text: string; colSpan: number; category: StatusCategory }[] = []
   let pos = startAbs
-
   const pushEmpty = (span: number) => {
     if (span <= 0) return
     result.push({ text: '', colSpan: span, category: 'empty' })
   }
-
   for (const ws of origins) {
     const wsEnd = ws.abs + ws.colSpan
     if (wsEnd <= startAbs) continue
     if (ws.abs >= endAbs) break
     const cellStart = Math.max(ws.abs, startAbs)
     const cellEnd   = Math.min(wsEnd, endAbs)
-    const cellSpan  = cellEnd - cellStart
     pushEmpty(cellStart - pos)
     const cat = ws.text ? classifyStatus(ws.text) : 'empty'
-    result.push({ text: ws.text, colSpan: cellSpan, category: cat })
+    result.push({ text: ws.text, colSpan: cellEnd - cellStart, category: cat })
     pos = cellEnd
   }
   pushEmpty(endAbs - pos)
   return result
 }
 
-// 행 수 → 행 높이·폰트·패딩 계산 (exec-band가 fontSize+2px이므로 band 기준 패딩 결정)
-function calcLayout(rowCount: number, targetPx: number) {
-  const rowH     = Math.min(60, targetPx / rowCount)
-  const fontSize = Math.max(7, +(rowH * 0.50).toFixed(1))
-  const bandFont = fontSize + 2
-  const padV     = +Math.max(1, (rowH - bandFont * 1.2) / 2).toFixed(1)
-  return { rowH: +rowH.toFixed(1), fontSize, padV }
-}
-
 export function ReportView() {
   const sheet        = useActiveSheet()
   const allProjects  = useFilteredProjects()
   const execOrderMap = useAppStore(s => s.execOrder)
-  const printRef  = useRef<HTMLDivElement>(null)
+  const printRef     = useRef<HTMLDivElement>(null)
 
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
@@ -102,17 +88,13 @@ export function ReportView() {
   const currentMonthIdx = getCurrentMonthIndex(sheet.period)
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
   let printEnd = Math.min(sheet.period.totalMonths, adjustedStart + PRINT_MONTHS)
-  if (printEnd - adjustedStart < PRINT_MONTHS) {
-    adjustedStart = Math.max(0, printEnd - PRINT_MONTHS)
-  }
+  if (printEnd - adjustedStart < PRINT_MONTHS) adjustedStart = Math.max(0, printEnd - PRINT_MONTHS)
   const printMonths = printEnd - adjustedStart
   const printLabels = monthLabels.slice(adjustedStart, adjustedStart + printMonths)
 
-  const handlePDF = () => { generatePDF() }
-
   const printProjects = allProjects.filter(p => !p.isManagerSummaryRow)
-
   const execOrder = execOrderMap[sheet.sheetId] ?? []
+
   const grouped = useMemo(() => {
     const map = new Map<string, typeof printProjects>()
     for (const p of printProjects) {
@@ -153,20 +135,22 @@ export function ReportView() {
   const page1Execs = execRowsData.slice(0, splitIdx)
   const page2Execs = execRowsData.slice(splitIdx)
 
-  // @page margin 10mm → 가용 277mm / 1페이지: 제목 8mm 차감 → 269mm
-  const P1_TARGET = 269 * 3.78  // ≈ 1017px
-  const P2_TARGET = 277 * 3.78  // ≈ 1047px
+  // ── mm 단위 직접 계산 (screen 측정 없음) ──────────────────────────
+  // @page margin: 10mm → A4 가용 277mm
+  // 1페이지: 제목 영역 약 7mm 차감 → 270mm
+  const P1_MM = 270
+  const P2_MM = 277
 
-  // 각 페이지 행 수 (thead 2행 포함)
-  const p1Rows = page1Execs.reduce((sum, {projects}) => sum + 1 + projects.length, 0) + 2
+  // thead 2행 포함한 전체 행 수
+  const p1Rows = page1Execs.reduce((sum, { projects }) => sum + 1 + projects.length, 0) + 2
   const p2Rows = page2Execs.length > 0
-    ? page2Execs.reduce((sum, {projects}) => sum + 1 + projects.length, 0) + 2
+    ? page2Execs.reduce((sum, { projects }) => sum + 1 + projects.length, 0) + 2
     : 1
 
-  const layout1 = useMemo(() => calcLayout(p1Rows, P1_TARGET), [p1Rows])
-  const layout2 = useMemo(() => calcLayout(p2Rows, P2_TARGET), [p2Rows])
+  // 행 높이 (mm) = 가용 높이 ÷ 행 수
+  const rowH1 = +(P1_MM / p1Rows).toFixed(2)
+  const rowH2 = +(P2_MM / p2Rows).toFixed(2)
 
-  // 연도 그룹 (thead 첫 번째 행)
   const yearGroups = useMemo(() => {
     const groups: { year: string; colSpan: number }[] = []
     for (const ml of printLabels) {
@@ -187,7 +171,7 @@ export function ReportView() {
           )}
         </colgroup>
         <thead>
-          <tr style={{ backgroundColor: '#d1d5db', color: '#111827' }}>
+          <tr className="report-thead-year" style={{ backgroundColor: '#d1d5db', color: '#111827' }}>
             <th className="report-th" />
             {yearGroups.map((g, i) => (
               <th key={i} colSpan={g.colSpan} className="report-th text-center report-year-th">
@@ -195,7 +179,7 @@ export function ReportView() {
               </th>
             ))}
           </tr>
-          <tr style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
+          <tr className="report-thead-month" style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
             <th className="report-th text-left">프로젝트명</th>
             {printLabels.map((ml, mi) => (
               <th key={mi} colSpan={4} className="report-th text-center">{ml.label}</th>
@@ -207,7 +191,7 @@ export function ReportView() {
             if (!exec) return null
             const totalCols = 1 + printMonths * 4
             return [
-              <tr key={`band-${exec.id}`} className="exec-band">
+              <tr key={`band-${exec.id}`} className="exec-band report-row">
                 <td colSpan={totalCols} className="report-td report-band font-bold">
                   ■ {exec.name} ({projects.length}건)
                 </td>
@@ -215,7 +199,7 @@ export function ReportView() {
               ...projects.map(project => {
                 const printCells = buildPrintRow(project.weekStatuses, adjustedStart, printMonths)
                 return (
-                  <tr key={project.id} className="print-no-break report-row">
+                  <tr key={project.id} className="report-row">
                     <td className="report-td report-project align-middle">{project.projectName}</td>
                     {printCells.map((cell, ci) => (
                       <td key={ci} colSpan={cell.colSpan}
@@ -244,64 +228,51 @@ export function ReportView() {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">■ 출력</h2>
           <p className="text-gray-500 text-sm mt-1">
-            {sheet.period.label} | 출력 범위: {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label}
+            {sheet.period.label} | {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length-1]?.yearShort} {printLabels[printLabels.length-1]?.label}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <button
-            onClick={handlePDF}
-            className="px-5 py-2.5 text-white rounded-lg transition-colors font-medium"
+          <button onClick={() => generatePDF()}
+            className="px-5 py-2.5 text-white rounded-lg font-medium"
             style={{ backgroundColor: 'var(--ci-blue)' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue-dark)' }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue)' }}
-          >
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue)' }}>
             인쇄 / PDF 저장
           </button>
           <span className="text-xs text-gray-500">인쇄 대화상자에서 <b>방향: 세로</b> 선택</span>
         </div>
       </div>
 
-      {/* 출력 검증 패널 */}
+      {/* 검증 패널 */}
       <div className="no-print mb-3 grid grid-cols-2 gap-2 text-xs font-mono">
         {([
-          { label: '1페이지', layout: layout1, rows: p1Rows, target: P1_TARGET },
-          { label: '2페이지', layout: layout2, rows: p2Rows, target: P2_TARGET },
-        ] as const).map(({ label, layout, rows, target }) => (
+          { label: '1페이지', rowH: rowH1, rows: p1Rows, targetMm: P1_MM },
+          { label: '2페이지', rowH: rowH2, rows: p2Rows, targetMm: P2_MM },
+        ] as const).map(({ label, rowH, rows, targetMm }) => (
           <div key={label} className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
             <div className="font-bold mb-1 text-green-800">✓ {label}</div>
             <div className="text-gray-600 space-y-0.5">
-              <div>행수: <b>{rows}행</b> | 행높이: <b>{layout.rowH}px</b></div>
-              <div>폰트: <b>{layout.fontSize}px</b> | 여백: <b>{layout.padV}px</b></div>
-              <div>가용: <b>{(target/3.78).toFixed(0)}mm</b> | A4 꽉 채움</div>
+              <div>행수: <b>{rows}행</b> | 행높이: <b>{rowH}mm</b></div>
+              <div>가용: <b>{targetMm}mm</b> | 합계: <b>{(rowH * rows).toFixed(1)}mm</b></div>
             </div>
           </div>
         ))}
       </div>
 
       <div ref={printRef} className="bg-white print-area">
-        {/* 제목 */}
-        <div className="px-2 py-1 border-b border-gray-400 print-no-break">
+        <div className="px-2 py-1 border-b border-gray-400">
           <h1 className="font-bold text-gray-800 report-title">■ 임원회의 PROJECT 진행일정표</h1>
         </div>
 
-        {/* 1페이지 */}
-        <div className="px-2 pt-1 table-section" style={{
-          ['--row-h' as string]: `${layout1.rowH}px`,
-          ['--font-sz' as string]: `${layout1.fontSize}px`,
-          ['--pad-v' as string]: `${layout1.padV}px`,
-        }}>
+        {/* 1페이지: --row-h를 mm 단위로 전달 */}
+        <div className="px-2 table-section" style={{ ['--row-h' as string]: `${rowH1}mm` }}>
           {renderTable(page1Execs)}
         </div>
 
-        {/* 2페이지 */}
         {page2Execs.length > 0 && (
           <>
             <div className="page-break" />
-            <div className="px-2 pt-1 table-section" style={{
-              ['--row-h' as string]: `${layout2.rowH}px`,
-              ['--font-sz' as string]: `${layout2.fontSize}px`,
-              ['--pad-v' as string]: `${layout2.padV}px`,
-            }}>
+            <div className="px-2 table-section" style={{ ['--row-h' as string]: `${rowH2}mm` }}>
               {renderTable(page2Execs)}
             </div>
           </>
@@ -312,18 +283,16 @@ export function ReportView() {
         .report-th, .report-td {
           border: 1px solid #6b7280;
           box-sizing: border-box;
-          word-break: keep-all;
-          overflow-wrap: break-word;
           color: #000;
         }
         .exec-band { break-after: avoid; page-break-after: avoid; }
         .exec-band + tr { break-before: avoid; page-break-before: avoid; }
 
-        /* 화면 보기 */
+        /* 화면 */
         .report-title { font-size: 18px; }
         .report-year-th { font-size: 13px; font-weight: 800; }
         .report-th { padding: 6px 8px; font-size: 13px; font-weight: 600; }
-        .report-project { padding: 6px 10px; font-size: 13px; font-weight: 500; }
+        .report-project { padding: 6px 10px; font-size: 13px; font-weight: 500; word-break: keep-all; }
         .report-cell { padding: 6px 4px; font-size: 12px; font-weight: 500; }
         .report-band td { padding: 6px 10px; font-size: 13px; background: #e5e7eb; font-weight: 700; }
         .report-row { line-height: 1.4; }
@@ -338,48 +307,51 @@ export function ReportView() {
           .no-print { display: none !important; }
           .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .page-break { page-break-after: always; break-after: page; height: 0; margin: 0; padding: 0; }
-          .table-section { -webkit-print-color-adjust: exact; }
-          .print-no-break { page-break-inside: avoid; break-inside: avoid; }
-          table { page-break-inside: auto; width: 100% !important; }
-          tr { page-break-inside: avoid; break-inside: avoid; }
 
-          .report-title { font-size: 11px; }
-          .report-year-th { font-weight: 800; font-size: calc(var(--font-sz, 8px) * 0.95); }
+          /* mm 단위 행 높이: tr에 지정 (td보다 안정적) */
+          .table-section .report-row { height: var(--row-h, 9mm); }
+          .table-section .report-thead-year { height: var(--row-h, 9mm); }
+          .table-section .report-thead-month { height: var(--row-h, 9mm); }
+
+          .report-title { font-size: 3mm; }
+          .report-year-th {
+            font-size: calc(var(--row-h, 9mm) * 0.42);
+            font-weight: 800;
+          }
           .report-th {
-            height: var(--row-h, 15px);
-            padding: var(--pad-v, 2px) 3px;
-            font-size: calc(var(--font-sz, 8px) * 0.90);
+            padding: calc(var(--row-h, 9mm) * 0.15) 2px;
+            font-size: calc(var(--row-h, 9mm) * 0.38);
             font-weight: 700;
-            line-height: 1.2;
+            line-height: 1.0;
+            overflow: hidden;
+            white-space: nowrap;
           }
           .report-project {
-            height: var(--row-h, 15px);
-            padding: var(--pad-v, 2px) 3px;
-            font-size: var(--font-sz, 8px);
+            padding: calc(var(--row-h, 9mm) * 0.15) 2px;
+            font-size: calc(var(--row-h, 9mm) * 0.42);
             font-weight: 600;
-            line-height: 1.2;
-            white-space: nowrap;
+            line-height: 1.0;
             overflow: hidden;
+            white-space: nowrap;
           }
           .report-cell {
-            height: var(--row-h, 15px);
-            padding: var(--pad-v, 2px) 2px;
-            font-size: calc(var(--font-sz, 8px) * 0.88);
+            padding: calc(var(--row-h, 9mm) * 0.15) 1px;
+            font-size: calc(var(--row-h, 9mm) * 0.38);
             font-weight: 500;
-            line-height: 1.2;
-            white-space: nowrap;
+            line-height: 1.0;
             overflow: hidden;
+            white-space: nowrap;
           }
           .report-band td {
-            height: var(--row-h, 15px);
-            padding: var(--pad-v, 2px) 5px;
-            font-size: calc(var(--font-sz, 8px) + 2px);
+            padding: calc(var(--row-h, 9mm) * 0.10) 3px;
+            font-size: calc(var(--row-h, 9mm) * 0.55);
             font-weight: 700;
-            line-height: 1.2;
-            white-space: nowrap;
+            line-height: 1.0;
             overflow: hidden;
+            white-space: nowrap;
           }
-          .report-row { line-height: 1.2; }
+          .report-row { line-height: 1.0; }
+          table { width: 100% !important; border-collapse: collapse; }
         }
       `}</style>
     </div>
