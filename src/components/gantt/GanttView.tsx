@@ -529,24 +529,36 @@ export function GanttView() {
                               }
                             }}
                             onMouseLeave={() => setTooltip(null)}
-                            className={`flex items-center cursor-crosshair border-r ${isMonthEnd ? 'border-gray-300' : 'border-gray-100'}`}
+                            className={`cursor-crosshair border-r ${isMonthEnd ? 'border-gray-300' : 'border-gray-100'}`}
                             style={{
                               width: CELL_W * span + 'px',
                               minWidth: CELL_W * span + 'px',
                               height: ROW_H + 'px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               backgroundColor: isDragHL ? '#d1d9e6'
                                 : ws.category !== 'empty' ? STATUS_CELL_BG[ws.category]
                                 : isCurrentMonth ? '#e8f0f9' : '#ffffff',
                               color: STATUS_CELL_TEXT[ws.category],
                               fontSize: '10px',
-                              overflow: 'hidden',
                               padding: '0 4px',
                               flexShrink: 0,
+                              direction: 'ltr',
+                              unicodeBidi: 'plaintext',
                             }}
                           >
                             {text && text !== '-' ? (
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', display: 'block', lineHeight: 1.2 }}>
-                                {text.replace(/\n/g, ' ')}
+                              <span style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: '100%',
+                                textAlign: 'center',
+                                direction: 'ltr',
+                                unicodeBidi: 'plaintext',
+                              }}>
+                                {text.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\n]/g, ' ').trim()}
                               </span>
                             ) : null}
                           </div>
