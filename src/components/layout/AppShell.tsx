@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { useAppStore } from '@/store/appStore'
@@ -7,12 +7,8 @@ import { GanttView } from '@/components/gantt/GanttView'
 import { ProjectListView } from '@/components/projects/ProjectListView'
 import { ReportView } from '@/components/report/ReportView'
 import {
-  initCloudSync, startPolling, onSyncStatusChange,
-  onConflictDetected, onRemoteUpdated,
-  forceSave, loadFromCloud, type SyncStatus,
+  initCloudSync, startPolling, onSyncStatusChange, onRemoteUpdated, type SyncStatus,
 } from '@/lib/cloudSync'
-
-interface ConflictHandlers { keepMine: () => void; useTheirs: () => void }
 
 export function AppShell() {
   const viewMode = useAppStore(s => s.viewMode)
@@ -20,7 +16,6 @@ export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [syncStatus, setSyncStatus]   = useState<SyncStatus>('idle')
   const [lastSynced, setLastSynced]   = useState<Date | undefined>()
-  const [conflict, setConflict]       = useState<ConflictHandlers | null>(null)
   const [remoteToast, setRemoteToast] = useState(false)
   const toastTimer                    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -28,13 +23,6 @@ export function AppShell() {
     onSyncStatusChange((s, at) => {
       setSyncStatus(s)
       if (at) setLastSynced(at)
-    })
-
-    onConflictDetected((keepMine, useTheirs) => {
-      setConflict({
-        keepMine: () => { keepMine(); setConflict(null) },
-        useTheirs: () => { useTheirs(); setConflict(null) },
-      })
     })
 
     onRemoteUpdated(() => {
@@ -46,12 +34,6 @@ export function AppShell() {
     initCloudSync().finally(() => setSynced(true))
     const stopPolling = startPolling()
     return () => { stopPolling(); clearTimeout(toastTimer.current) }
-  }, [])
-
-  const handleSync = useCallback(async () => {
-    setSyncStatus('saving')
-    await loadFromCloud()
-    await forceSave()
   }, [])
 
   if (!synced) {
@@ -66,23 +48,11 @@ export function AppShell() {
     )
   }
 
-  const syncLabel = syncStatus === 'saving' ? '동기화 중...'
-    : syncStatus === 'error'  ? '동기화 실패'
-    : lastSynced ? `동기화 ${lastSynced.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
-    : '동기화'
-  const syncColor = syncStatus === 'error' ? '#ef4444' : syncStatus === 'saved' ? '#22c55e' : '#6b7280'
-
   return (
     <div className="app-shell flex h-screen overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="app-main flex-1 flex flex-col overflow-hidden min-w-0">
-        <TopBar
-          onMenuClick={() => setSidebarOpen(true)}
-          onSync={handleSync}
-          syncLabel={syncLabel}
-          syncColor={syncColor}
-          syncBusy={syncStatus === 'saving'}
-        />
+        <TopBar onMenuClick={() => setSidebarOpen(true)} syncStatus={syncStatus} lastSynced={lastSynced} />
         <main className="flex-1 overflow-auto bg-gray-50">
           {viewMode === 'dashboard' && <DashboardView />}
           {viewMode === 'gantt'     && <GanttView />}
@@ -98,33 +68,6 @@ export function AppShell() {
         </div>
       )}
 
-      {/* 충돌 모달 */}
-      {conflict && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl p-6 shadow-xl max-w-sm w-full mx-4">
-            <h3 className="font-bold text-lg mb-1 text-gray-800">동기화 충돌 감지</h3>
-            <p className="text-gray-500 text-sm mb-5">
-              내가 수정하는 동안 다른 사용자가 데이터를 저장했습니다.<br />
-              어떻게 처리할까요?
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={conflict.keepMine}
-                className="flex-1 px-3 py-2 text-white rounded-lg text-sm font-medium"
-                style={{ backgroundColor: 'var(--ci-blue)' }}
-              >
-                내 변경사항 유지
-              </button>
-              <button
-                onClick={conflict.useTheirs}
-                className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
-              >
-                최신 데이터 불러오기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

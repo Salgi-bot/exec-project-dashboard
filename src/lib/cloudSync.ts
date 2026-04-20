@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { useAppStore } from '@/store/appStore'
 import { EXECUTIVE_MAP } from '@/constants/executives'
+import type { SheetId } from '@/types/project.types'
 
 const STATE_ID = 'main'
 
@@ -8,15 +9,12 @@ export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 let _onStatus:       ((s: SyncStatus, at?: Date) => void) | null = null
 let _onRemoteUpdate: (() => void) | null = null
-let _onConflict:     ((keepMine: () => void, useTheirs: () => void) => void) | null = null
 
-export function onSyncStatusChange(cb: typeof _onStatus)   { _onStatus       = cb }
-export function onRemoteUpdated(cb: () => void)             { _onRemoteUpdate = cb }
-export function onConflictDetected(cb: typeof _onConflict) { _onConflict     = cb }
+export function onSyncStatusChange(cb: typeof _onStatus) { _onStatus       = cb }
+export function onRemoteUpdated(cb: () => void)           { _onRemoteUpdate = cb }
 
 function notify(s: SyncStatus, at?: Date) { _onStatus?.(s, at) }
 
-let hasPendingChanges = false
 
 function syncExecutiveTitles(state: ReturnType<typeof useAppStore.getState>) {
   if (!state.sheets) return state
@@ -54,6 +52,39 @@ function hasData(state: ReturnType<typeof getPersistedState> | null) {
   return !!(state?.fileName && Object.keys(state?.sheets ?? {}).length > 0)
 }
 
+// 프로젝트 단위 병합: 내가 수정한 프로젝트는 내 버전, 나머지는 원격 버전
+function mergeWithLocal(remoteState: ReturnType<typeof getPersistedState>): ReturnType<typeof getPersistedState> {
+  const local = getPersistedState()
+  const localEditedIds = new Set(local.editQueue.map(e => e.projectId))
+
+  if (localEditedIds.size === 0) return remoteState  // 로컬 변경 없으면 원격 그대로
+
+  const mergedSheets = { ...remoteState.sheets }
+  for (const sheetId of Object.keys(remoteState.sheets ?? {}) as SheetId[]) {
+    const remoteSheet = remoteState.sheets?.[sheetId]
+    const localSheet  = local.sheets?.[sheetId]
+    if (!remoteSheet || !localSheet) continue
+
+    const localMap = new Map(localSheet.projects.map(p => [p.id, p]))
+    mergedSheets[sheetId] = {
+      ...remoteSheet,
+      projects: remoteSheet.projects.map(p =>
+        localEditedIds.has(p.id) ? (localMap.get(p.id) ?? p) : p
+      ),
+    }
+  }
+
+  return {
+    ...remoteState,
+    sheets:            mergedSheets,
+    editQueue:         local.editQueue,
+    assigneeOverrides: { ...remoteState.assigneeOverrides, ...local.assigneeOverrides },
+    projectOrderMap:   { ...remoteState.projectOrderMap,   ...local.projectOrderMap   },
+    projectMetaEdits:  { ...remoteState.projectMetaEdits,  ...local.projectMetaEdits  },
+    execOrder:         Object.keys(local.execOrder ?? {}).length > 0 ? local.execOrder : remoteState.execOrder,
+  }
+}
+
 // ── 저장 ──────────────────────────────────────────────────
 async function saveToSupabase(retries = 2): Promise<boolean> {
   const persisted = getPersistedState()
@@ -67,7 +98,6 @@ async function saveToSupabase(retries = 2): Promise<boolean> {
         updated_at: new Date().toISOString(),
       })
       if (error) throw error
-      hasPendingChanges = false
       notify('saved', new Date())
       return true
     } catch (e) {
@@ -93,7 +123,6 @@ export async function loadFromCloud(): Promise<boolean> {
     if (error) throw error
     if (hasData(data?.data)) {
       useAppStore.setState(syncExecutiveTitles(data.data))
-      hasPendingChanges = false
       notify('saved', new Date())
       return true
     }
@@ -116,20 +145,15 @@ export function startPolling(): () => void {
         const remoteState = payload.new?.data
         if (!hasData(remoteState)) return
 
-        if (hasPendingChanges) {
-          _onConflict?.(
-            async () => { await saveToSupabase(1) },
-            () => {
-              hasPendingChanges = false
-              useAppStore.setState(syncExecutiveTitles(remoteState))
-              notify('saved', new Date())
-              _onRemoteUpdate?.()
-            }
-          )
-        } else {
-          useAppStore.setState(syncExecutiveTitles(remoteState))
-          notify('saved', new Date())
-          _onRemoteUpdate?.()
+        // 프로젝트 단위 자동 병합 (내 수정 보존 + 원격 수정 반영)
+        const merged = mergeWithLocal(remoteState)
+        useAppStore.setState(syncExecutiveTitles(merged as ReturnType<typeof useAppStore.getState>))
+        notify('saved', new Date())
+        _onRemoteUpdate?.()
+
+        // 병합 결과를 즉시 저장 (내 변경 + 원격 변경 통합본)
+        if (merged.editQueue.length > 0) {
+          setTimeout(() => saveToSupabase(), 500)
         }
       }
     )
@@ -167,7 +191,6 @@ export async function initCloudSync(): Promise<void> {
     const next = JSON.stringify(getPersistedState())
     if (next === prevSnapshot) return
     prevSnapshot      = next
-    hasPendingChanges = true
     notify('saving')
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(() => saveToSupabase(), 1500)

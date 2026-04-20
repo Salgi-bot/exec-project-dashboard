@@ -4,15 +4,17 @@ import { useAppStore } from '@/store/appStore'
 import { useActiveSheet, useFilteredProjects } from '@/hooks/useFilteredProjects'
 import { exportToExcel } from '@/utils/excelExport'
 
+import type { SyncStatus } from '@/lib/cloudSync'
+
 interface Props {
   onMenuClick: () => void
-  onSync: () => void
-  syncLabel: string
-  syncColor: string
-  syncBusy: boolean
+  syncStatus: SyncStatus
+  lastSynced?: Date
 }
 
-export function TopBar({ onMenuClick, onSync, syncLabel, syncColor, syncBusy }: Props) {
+export function TopBar({ onMenuClick, syncStatus, lastSynced }: Props) {
+  const syncDot = syncStatus === 'error' ? '#ef4444' : syncStatus === 'saving' ? '#f59e0b' : '#22c55e'
+  const syncTip = syncStatus === 'saving' ? '저장 중...' : syncStatus === 'error' ? '동기화 실패' : lastSynced ? `${lastSynced.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 동기화됨` : '동기화 대기'
   const selectedExecutiveIds = useAppStore(s => s.selectedExecutiveIds)
   const toggleExecutive = useAppStore(s => s.toggleExecutive)
   const setAllExecutives = useAppStore(s => s.setAllExecutives)
@@ -119,15 +121,7 @@ export function TopBar({ onMenuClick, onSync, syncLabel, syncColor, syncBusy }: 
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-32 md:w-48 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
 
-        <button
-          onClick={onSync}
-          disabled={syncBusy}
-          className="px-2 py-1 rounded text-xs font-medium transition-colors border whitespace-nowrap disabled:opacity-50"
-          style={{ borderColor: syncColor, color: syncColor }}
-          title="클라우드 동기화 (불러오기 + 저장)"
-        >
-          ☁ {syncLabel}
-        </button>
+        <span title={syncTip} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: syncDot, flexShrink: 0 }} />
         <FileImportButton />
         {sheet && (
           <button
