@@ -37,7 +37,7 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
 const NAME_W      = 260   // 프로젝트명 컬럼
 const ASSIGNEE_W  = 72    // 담당자 컬럼
 const ROW_H       = 36
-const HEADER_H    = ROW_H * 3 - 4
+const HEADER_H    = ROW_H
 
 function getCellW(): number {
   return window.innerWidth < 768 ? 36 : 48
@@ -132,16 +132,6 @@ export function GanttView() {
 
   const monthLabels     = getMonthLabels(sheet.period)
   const currentMonthIdx = getCurrentMonthIndex(sheet.period)
-
-  const yearGroups = useMemo(() => {
-    const groups: { yearShort: string; count: number }[] = []
-    for (const ml of monthLabels) {
-      const last = groups[groups.length - 1]
-      if (last && last.yearShort === ml.yearShort) last.count++
-      else groups.push({ yearShort: ml.yearShort, count: 1 })
-    }
-    return groups
-  }, [monthLabels])
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof projects>()
@@ -288,54 +278,21 @@ export function GanttView() {
       <div ref={scrollRef} className="gantt-container flex-1 relative overflow-auto select-none" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
         <div style={{ minWidth: totalWidth + 'px', width: totalWidth + 'px' }}>
 
-          {/* 헤더 1: 연도 */}
+          {/* 헤더: 단일 행 */}
           <div className="flex sticky top-0 z-30 bg-slate-800 text-white" style={{ height: ROW_H + 'px' }}>
             <div className="shrink-0 bg-slate-800 sticky left-0 z-40 flex">
-              <div className="flex items-center px-2 text-xs font-semibold text-slate-400 border-r border-slate-600" style={{ width: NAME_W + 'px' }}>프로젝트 / 임원</div>
-              <div className="flex items-center justify-center px-2 text-xs font-semibold text-slate-400 border-r border-slate-600" style={{ width: ASSIGNEE_W + 'px' }}>담당</div>
+              <div className="flex items-center px-2 text-xs font-semibold text-slate-300 border-r border-slate-600" style={{ width: NAME_W + 'px' }}>프로젝트 / 임원</div>
+              <div className="flex items-center justify-center px-2 text-xs font-semibold text-slate-300 border-r border-slate-600" style={{ width: ASSIGNEE_W + 'px' }}>담당자</div>
             </div>
-            {yearGroups.map((g, i) => (
-              <div key={i}
-                className="flex items-center justify-center text-xs font-bold border-r border-slate-600 bg-slate-700"
-                style={{ width: CELL_W * 4 * g.count + 'px' }}
-              >{g.yearShort}</div>
-            ))}
-          </div>
-
-          {/* 헤더 2: 월 */}
-          <div className="flex sticky z-30 bg-slate-700 text-white" style={{ top: ROW_H + 'px', height: ROW_H + 'px' }}>
-            <div className="shrink-0 flex items-center px-2 text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky left-0 z-40"
-              style={{ width: NAME_W + 'px' }}>
-              프로젝트 / 담당임원
-            </div>
-            <div className="shrink-0 flex items-center justify-center text-xs font-semibold border-r border-slate-600 bg-slate-700 sticky z-40"
-              style={{ width: ASSIGNEE_W + 'px', left: NAME_W + 'px' }}>
-              담당자
-            </div>
-            {monthLabels.map((ml, mi) => (
-              <div key={mi}
-                className="flex items-center justify-center text-xs font-semibold border-r border-slate-600"
-                style={{
-                  width: CELL_W * 4 + 'px',
-                  backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue)' : undefined,
-                }}
-              >{ml.label}</div>
-            ))}
-          </div>
-
-          {/* 헤더 3: 주차 */}
-          <div className="flex sticky z-30 bg-slate-600 text-white" style={{ top: ROW_H * 2 + 'px', height: ROW_H - 4 + 'px' }}>
-            <div className="shrink-0 border-r border-slate-500 bg-slate-600 sticky left-0 z-40"
-              style={{ width: NAME_W + ASSIGNEE_W + 'px' }} />
-            {monthLabels.map((_, mi) =>
+            {monthLabels.map((ml, mi) =>
               [1, 2, 3, 4].map(w => (
                 <div key={`${mi}_${w}`}
-                  className="flex items-center justify-center text-xs border-r border-slate-500 text-slate-300"
+                  className="flex items-center justify-center text-xs border-r border-slate-600 text-slate-300"
                   style={{
                     width: CELL_W + 'px',
                     backgroundColor: mi === currentMonthIdx ? 'var(--ci-blue-dark)' : undefined,
                   }}
-                >{w}</div>
+                >{w === 1 ? ml.label : w}</div>
               ))
             )}
           </div>
