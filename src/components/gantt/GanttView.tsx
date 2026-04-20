@@ -390,7 +390,6 @@ export function GanttView() {
 
                 {/* 프로젝트 행 */}
                 {!isCollapsed && execProjects.map((project, projIdx) => {
-                  if (project.isManagerSummaryRow) return null
                   const dupConflicts = duplicateConflicts.get(project.id)
                   const isDup        = !!dupConflicts
                   const assignee     = getAssignee(project.id, project.executiveId)
