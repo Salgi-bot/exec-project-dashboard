@@ -90,7 +90,6 @@ export function useFilteredProjects(): Project[] {
     })
 
     return projects.filter(p => {
-      if (p.isManagerSummaryRow) return false
       if (deletedProjectIds.includes(p.id)) return false
       if (selectedExecutiveIds.length > 0 && !selectedExecutiveIds.includes(p.executiveId)) return false
       if (searchText) {
@@ -105,7 +104,7 @@ export function useFilteredProjects(): Project[] {
         ].join(' ').toLowerCase()
         if (!searchTarget.includes(q)) return false
       }
-      if (hideEmpty && isAllEmpty(p)) return false
+      if (hideEmpty && !p.isManagerSummaryRow && isAllEmpty(p)) return false
       if (hideSameTaskMonths > 0 && getLongestSameTaskWeeks(p) >= hideSameTaskMonths * 4) return false
       return true
     }).sort((a, b) => {
