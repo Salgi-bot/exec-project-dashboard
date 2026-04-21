@@ -31,6 +31,8 @@ jobs:
           VITE_GIST_TOKEN: ${{ secrets.VITE_GIST_TOKEN }}
           VITE_GIST_ID: ${{ secrets.VITE_GIST_ID }}
           VITE_ADMIN_PASSWORD: ${{ secrets.VITE_ADMIN_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
