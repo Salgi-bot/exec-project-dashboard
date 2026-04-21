@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/appStore'
 import { useActiveSheet } from '@/hooks/useFilteredProjects'
 import { isProjectDuplicate } from '@/utils/similarity'
 import { EXECUTIVE_MAP } from '@/constants/executives'
+import { useMeetingGuard } from '@/hooks/useMeetingGuard'
 import type { Executive } from '@/types/project.types'
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 
 export function AddProjectModal({ executive, onClose }: Props) {
   const addCustomProject = useAppStore(s => s.addCustomProject)
+  const guard            = useMeetingGuard(s => s.guard)
   const sheet = useActiveSheet()
   const [projectName, setProjectName] = useState('')
   const [client, setClient] = useState('')
@@ -35,16 +37,18 @@ export function AddProjectModal({ executive, onClose }: Props) {
 
   const handleSave = () => {
     if (!projectName.trim()) return
-    addCustomProject(
-      executive.id,
-      projectName.trim(),
-      client.trim(),
-      assignee.trim() || defaultAssignee,
-    )
-    onClose()
-    setProjectName('')
-    setClient('')
-    setAssignee('')
+    guard(() => {
+      addCustomProject(
+        executive.id,
+        projectName.trim(),
+        client.trim(),
+        assignee.trim() || defaultAssignee,
+      )
+      onClose()
+      setProjectName('')
+      setClient('')
+      setAssignee('')
+    })
   }
 
   return (

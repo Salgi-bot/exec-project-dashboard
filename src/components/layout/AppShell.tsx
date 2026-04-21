@@ -9,6 +9,7 @@ import { ReportView } from '@/components/report/ReportView'
 import {
   initCloudSync, startPolling, onSyncStatusChange, onRemoteUpdated, type SyncStatus,
 } from '@/lib/cloudSync'
+import { useMeetingGuard } from '@/hooks/useMeetingGuard'
 
 function isInInput(target: EventTarget | null): boolean {
   if (!target) return false
@@ -19,6 +20,7 @@ function isInInput(target: EventTarget | null): boolean {
 export function AppShell() {
   const viewMode = useAppStore(s => s.viewMode)
   const undo     = useAppStore(s => s.undo)
+  const { pending: guardPending, confirm: guardConfirm, cancel: guardCancel } = useMeetingGuard()
   const [synced, setSynced]           = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [hideUI, setHideUI]           = useState(false)
@@ -120,6 +122,36 @@ export function AppShell() {
           )}
         </svg>
       </button>
+
+      {/* 임원회의 시간 수정 경고 모달 */}
+      {guardPending && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <div className="text-3xl mb-3 text-center">⚠️</div>
+            <h3 className="text-base font-bold text-gray-900 text-center mb-2">임원회의 시간입니다</h3>
+            <p className="text-sm text-gray-600 text-center mb-6 leading-relaxed">
+              월요일 9:00~12:00 임원회의 시간입니다.<br />
+              관리자가 이미 출력했을 수 있습니다.<br />
+              수정 전 관리자에게 확인해 주세요.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={guardCancel}
+                className="flex-1 py-2.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={guardConfirm}
+                className="flex-1 py-2.5 rounded-lg text-white text-sm font-semibold"
+                style={{ backgroundColor: 'var(--ci-blue)' }}
+              >
+                수정 계속
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 원격 업데이트 토스트 */}
       {remoteToast && (

@@ -9,6 +9,7 @@ import { AddProjectModal } from './AddProjectModal'
 import { getMonthLabels } from '@/constants/periods'
 import { isProjectDuplicate } from '@/utils/similarity'
 import { EXECUTIVE_MAP, EXECUTIVES } from '@/constants/executives'
+import { useMeetingGuard } from '@/hooks/useMeetingGuard'
 import type { StatusCategory, Executive, SheetPeriod } from '@/types/project.types'
 
 interface MetaEdit { id: string; projectName: string; client: string; executiveId: string }
@@ -71,6 +72,7 @@ export function GanttView() {
   const deleteProject       = useAppStore(s => s.deleteProject)
   const restoreProject      = useAppStore(s => s.restoreProject)
   const updateProjectMeta   = useAppStore(s => s.updateProjectMeta)
+  const guard               = useMeetingGuard(s => s.guard)
   const deletedProjectIds   = useAppStore(s => s.deletedProjectIds)
   const execOrderMap        = useAppStore(s => s.execOrder)
   const setExecOrderStore   = useAppStore(s => s.setExecOrder)
@@ -205,14 +207,16 @@ export function GanttView() {
 
   function handleDelete(projectId: string, projectName: string) {
     if (window.confirm(`"${projectName}" 프로젝트를 삭제하시겠습니까?\n(삭제된 항목은 화면 하단에서 복구할 수 있습니다)`)) {
-      deleteProject(projectId)
+      guard(() => deleteProject(projectId))
     }
   }
 
   function saveMetaEdit() {
     if (!editingMeta) return
-    updateProjectMeta(editingMeta.id, editingMeta.projectName.trim(), editingMeta.client.trim(), editingMeta.executiveId)
-    setEditingMeta(null)
+    guard(() => {
+      updateProjectMeta(editingMeta.id, editingMeta.projectName.trim(), editingMeta.client.trim(), editingMeta.executiveId)
+      setEditingMeta(null)
+    })
   }
 
   function navigateToProject(projectId: string) {

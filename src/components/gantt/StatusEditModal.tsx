@@ -3,6 +3,7 @@ import { Modal } from '@/components/shared/Modal'
 import { useAppStore } from '@/store/appStore'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { getMonthLabels } from '@/constants/periods'
+import { useMeetingGuard } from '@/hooks/useMeetingGuard'
 
 function absWeekToMonthWeek(abs: number) {
   return { monthIndex: Math.floor(abs / 4), weekIndex: abs % 4 }
@@ -18,6 +19,7 @@ export function StatusEditModal() {
   const setEditingRange = useAppStore(s => s.setEditingRange)
   const applyEdit      = useAppStore(s => s.applyEdit)
   const applyRangeEdit = useAppStore(s => s.applyRangeEdit)
+  const guard          = useMeetingGuard(s => s.guard)
   const projects = useFilteredProjects()
   const sheet = useActiveSheet()
 
@@ -75,18 +77,22 @@ export function StatusEditModal() {
   }
 
   const handleSave = () => {
-    if (startAbs === endAbs) {
-      const { monthIndex, weekIndex } = absWeekToMonthWeek(startAbs)
-      applyEdit({ projectId, monthIndex, weekIndex, newText: text, timestamp: Date.now() })
-    } else {
-      applyRangeEdit(projectId, startAbs, endAbs, text)
-    }
-    handleClose()
+    guard(() => {
+      if (startAbs === endAbs) {
+        const { monthIndex, weekIndex } = absWeekToMonthWeek(startAbs)
+        applyEdit({ projectId, monthIndex, weekIndex, newText: text, timestamp: Date.now() })
+      } else {
+        applyRangeEdit(projectId, startAbs, endAbs, text)
+      }
+      handleClose()
+    })
   }
 
   const handleClear = () => {
-    applyRangeEdit(projectId, startAbs, endAbs, '')
-    handleClose()
+    guard(() => {
+      applyRangeEdit(projectId, startAbs, endAbs, '')
+      handleClose()
+    })
   }
 
   const startMW = absWeekToMonthWeek(startAbs)
