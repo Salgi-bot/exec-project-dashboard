@@ -176,14 +176,22 @@ export function ReportView() {
 
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
-  // 행 수 기준 2페이지 균등 분할 (임원 밴드 1행 + 프로젝트 n행)
+  // 행 수 기준 2페이지 균등 분할 — 두 페이지 행 차이가 최소가 되는 분할점 탐색
+  // (임원 밴드 1행 + 프로젝트 n행)
   const totalRows = execRowsData.reduce((sum, { projects }) => sum + 1 + projects.length, 0)
-  let accumulated = 0
-  let splitIdx = execRowsData.length
+  let bestSplit = execRowsData.length
+  let bestDiff = Infinity
+  let cumulative = 0
   for (let i = 0; i < execRowsData.length; i++) {
-    accumulated += 1 + execRowsData[i].projects.length
-    if (accumulated >= Math.ceil(totalRows / 2)) { splitIdx = i + 1; break }
+    cumulative += 1 + execRowsData[i].projects.length
+    const remaining = totalRows - cumulative
+    const diff = Math.abs(cumulative - remaining)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestSplit = i + 1
+    }
   }
+  const splitIdx = bestSplit
   const page1Execs = execRowsData.slice(0, splitIdx)
   const page2Execs = execRowsData.slice(splitIdx)
 
@@ -206,29 +214,45 @@ export function ReportView() {
     }
   }
 
-  function renderTable(execs: typeof execRowsData, withTitle: boolean) {
+  function renderTable(execs: typeof execRowsData, pageNum: number, totalPages: number) {
     const totalCols = 1 + printMonths
+    const today = new Date()
+    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
 
     return (
       <>
-        {withTitle && (
-          <div style={{
-            height: TITLE_H_PX,
-            padding: '4px 8px',
-            borderBottom: '1px solid #6b7280',
-            display: 'flex',
-            alignItems: 'center',
+        <div style={{
+          height: TITLE_H_PX,
+          padding: '4px 8px',
+          borderBottom: '1px solid #6b7280',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <h1 style={{
+            margin: 0,
+            fontSize: 16,
+            fontWeight: 700,
+            color: '#1f2937',
           }}>
-            <h1 style={{
-              margin: 0,
-              fontSize: 16,
-              fontWeight: 700,
-              color: '#1f2937',
+            ■ 임원회의 PROJECT 진행일정표
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 10, color: '#6b7280' }}>출력일자: {dateStr}</span>
+            <span style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#374151',
+              padding: '2px 8px',
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              backgroundColor: '#f9fafb',
             }}>
-              ■ 임원회의 PROJECT 진행일정표
-            </h1>
+              {pageNum} / {totalPages}
+            </span>
           </div>
-        )}
+        </div>
         <table
           style={{
             width: '100%',
@@ -429,7 +453,7 @@ export function ReportView() {
             overflow: 'hidden',
           }}
         >
-          {renderTable(page1Execs, true)}
+          {renderTable(page1Execs, 1, page2Execs.length > 0 ? 2 : 1)}
         </div>
 
         {page2Execs.length > 0 && (
@@ -444,7 +468,7 @@ export function ReportView() {
               overflow: 'hidden',
             }}
           >
-            {renderTable(page2Execs, false)}
+            {renderTable(page2Execs, 2, 2)}
           </div>
         )}
       </div>
