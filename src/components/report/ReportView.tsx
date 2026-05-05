@@ -262,12 +262,11 @@ export function ReportView() {
   function renderTable(execs: typeof execRowsData) {
     const totalCols = 1 + printMonths
     return (
+      <div style={{ border: CELL_BORDER, boxSizing: 'border-box' }}>
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
         tableLayout: 'fixed',
-        border: CELL_BORDER,
-        boxSizing: 'border-box',
       }}>
         <colgroup>
           <col style={{ width: `${PROJECT_COL_WIDTH_PCT}%` }} />
@@ -388,6 +387,7 @@ export function ReportView() {
           })}
         </tbody>
       </table>
+      </div>
     )
   }
 
