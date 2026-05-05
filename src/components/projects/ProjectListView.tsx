@@ -85,9 +85,6 @@ export function ProjectListView() {
   const setExecOrderStore = useAppStore(s => s.setExecOrder)
   const [selected, setSelected] = useState<Project | null>(null)
 
-  if (!sheet) return <div className="p-8"><EmptyState /></div>
-
-  const monthLabels = getMonthLabels(sheet.period)
   const execOrder = sheet ? (execOrderMap[sheet.sheetId] ?? []) : []
 
   // 임원별 그룹핑 (execOrder 순서 유지)
@@ -103,6 +100,7 @@ export function ProjectListView() {
   }, [projects])
 
   const executives: Executive[] = useMemo(() => {
+    if (!sheet) return []
     const allExecs = sheet.executives
     const ordered = execOrder.length
       ? execOrder.map(id => allExecs.find(e => e.id === id)).filter((e): e is Executive => !!e && grouped.has(e.id))
@@ -111,7 +109,11 @@ export function ProjectListView() {
       if (!ordered.find(x => x.id === e.id) && grouped.has(e.id)) ordered.push(e)
     })
     return ordered
-  }, [sheet.executives, execOrder, grouped])
+  }, [sheet, execOrder, grouped])
+
+  if (!sheet) return <div className="p-8"><EmptyState /></div>
+
+  const monthLabels = getMonthLabels(sheet.period)
 
   function moveExec(id: string, dir: -1 | 1) {
     if (!sheet) return

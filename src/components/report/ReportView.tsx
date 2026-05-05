@@ -113,12 +113,10 @@ export function ReportView() {
   const page2Ref     = useRef<HTMLDivElement>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
-  if (!sheet) return <div className="p-8"><EmptyState /></div>
-
-  const monthLabels = getMonthLabels(sheet.period)
-  const currentMonthIdx = getCurrentMonthIndex(sheet.period)
+  const monthLabels = sheet ? getMonthLabels(sheet.period) : []
+  const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
-  const printEnd = Math.min(sheet.period.totalMonths, adjustedStart + PRINT_MONTHS)
+  const printEnd = sheet ? Math.min(sheet.period.totalMonths, adjustedStart + PRINT_MONTHS) : 0
   if (printEnd - adjustedStart < PRINT_MONTHS) adjustedStart = Math.max(0, printEnd - PRINT_MONTHS)
   const printMonths = printEnd - adjustedStart
   const printLabels = monthLabels.slice(adjustedStart, adjustedStart + printMonths)
@@ -133,7 +131,7 @@ export function ReportView() {
     }
     return false
   })
-  const execOrder = execOrderMap[sheet.sheetId] ?? []
+  const execOrder = sheet ? (execOrderMap[sheet.sheetId] ?? []) : []
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof printProjects>()
@@ -146,6 +144,7 @@ export function ReportView() {
   }, [printProjects])
 
   const orderedExecs = useMemo(() => {
+    if (!sheet) return []
     const allExecs = sheet.executives
     const ordered = execOrder.length
       ? execOrder.map(id => allExecs.find(e => e.id === id)).filter(e => !!e && grouped.has(e!.id))
@@ -154,7 +153,7 @@ export function ReportView() {
       if (!ordered.find(x => x?.id === e.id) && grouped.has(e.id)) ordered.push(e)
     })
     return ordered.filter(Boolean)
-  }, [sheet.executives, execOrder, grouped])
+  }, [sheet, execOrder, grouped])
 
   const execRowsData = useMemo(() => {
     return orderedExecs.map(exec => {
@@ -163,6 +162,19 @@ export function ReportView() {
       return { exec, projects }
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
+
+  // 연도 그룹 (월별 컬럼이므로 colSpan += 1)
+  const yearGroups = useMemo(() => {
+    const groups: { year: string; colSpan: number }[] = []
+    for (const ml of printLabels) {
+      const last = groups[groups.length - 1]
+      if (last && last.year === ml.yearShort) last.colSpan += 1
+      else groups.push({ year: ml.yearShort, colSpan: 1 })
+    }
+    return groups
+  }, [printLabels])
+
+  if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   // 행 수 기준 2페이지 균등 분할 (임원 밴드 1행 + 프로젝트 n행)
   const totalRows = execRowsData.reduce((sum, { projects }) => sum + 1 + projects.length, 0)
@@ -180,17 +192,6 @@ export function ReportView() {
   const p1ProjCount = page1Execs.reduce((s, { projects }) => s + projects.length, 0)
   const p2ExecCount = page2Execs.length
   const p2ProjCount = page2Execs.reduce((s, { projects }) => s + projects.length, 0)
-
-  // 연도 그룹 (월별 컬럼이므로 colSpan += 1)
-  const yearGroups = useMemo(() => {
-    const groups: { year: string; colSpan: number }[] = []
-    for (const ml of printLabels) {
-      const last = groups[groups.length - 1]
-      if (last && last.year === ml.yearShort) last.colSpan += 1
-      else groups.push({ year: ml.yearShort, colSpan: 1 })
-    }
-    return groups
-  }, [printLabels])
 
   async function handleGeneratePDF() {
     if (isGenerating) return

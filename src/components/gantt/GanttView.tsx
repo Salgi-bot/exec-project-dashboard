@@ -130,10 +130,8 @@ export function GanttView() {
     return () => window.removeEventListener('mouseup', onMouseUp)
   }, [setEditingCell, setEditingRange])
 
-  if (!sheet) return <div className="p-8"><EmptyState /></div>
-
-  const monthLabels     = getMonthLabels(sheet.period)
-  const currentMonthIdx = getCurrentMonthIndex(sheet.period)
+  const monthLabels     = sheet ? getMonthLabels(sheet.period) : []
+  const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
 
   const yearGroups = useMemo(() => {
     const groups: { yearShort: string; count: number }[] = []
@@ -156,6 +154,7 @@ export function GanttView() {
   }, [projects])
 
   const executives: Executive[] = useMemo(() => {
+    if (!sheet) return []
     const allExecs = sheet.executives
     if (!execOrder.length) return allExecs.filter(e => grouped.has(e.id))
     const ordered = execOrder
@@ -165,10 +164,11 @@ export function GanttView() {
       if (!execOrder.includes(e.id) && grouped.has(e.id)) ordered.push(e)
     })
     return ordered
-  }, [sheet.executives, execOrder, grouped])
+  }, [sheet, execOrder, grouped])
 
   // 유사 중복 감지 (70% 이상) → Map<id, [{id, text}]>
   const duplicateConflicts = useMemo(() => {
+    if (!sheet) return new Map<string, Array<{ id: string; text: string }>>()
     const all = sheet.projects.filter(p => !p.isManagerSummaryRow && !deletedProjectIds.includes(p.id))
     const map = new Map<string, Array<{ id: string; text: string }>>()
     for (let i = 0; i < all.length; i++) {
@@ -183,7 +183,9 @@ export function GanttView() {
       }
     }
     return map
-  }, [sheet.projects, deletedProjectIds])
+  }, [sheet, deletedProjectIds])
+
+  if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   function moveExec(id: string, dir: -1 | 1) {
     if (!sheet) return
