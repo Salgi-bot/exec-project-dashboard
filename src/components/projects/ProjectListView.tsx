@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -83,7 +83,17 @@ export function ProjectListView() {
   const assigneeOverrides = useAppStore(s => s.assigneeOverrides)
   const execOrderMap = useAppStore(s => s.execOrder)
   const setExecOrderStore = useAppStore(s => s.setExecOrder)
+  const selectedProjectId = useAppStore(s => s.selectedProjectId)
+  const setSelectedProject = useAppStore(s => s.setSelectedProject)
   const [selected, setSelected] = useState<Project | null>(null)
+
+  // 명령 팔레트로부터 프로젝트 선택 시 자동 모달 오픈
+  useEffect(() => {
+    if (!selectedProjectId) return
+    const found = projects.find(p => p.id === selectedProjectId)
+      ?? sheet?.projects.find(p => p.id === selectedProjectId)
+    if (found) setSelected(found)
+  }, [selectedProjectId, projects, sheet])
 
   const execOrder = sheet ? (execOrderMap[sheet.sheetId] ?? []) : []
 
@@ -220,7 +230,7 @@ export function ProjectListView() {
         </table>
       </div>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="프로젝트 상세" size="xl">
+      <Modal open={!!selected} onClose={() => { setSelected(null); setSelectedProject(null) }} title="프로젝트 상세" size="xl">
         {selected && <ProjectDetail project={selected} monthLabels={monthLabels} />}
       </Modal>
     </div>

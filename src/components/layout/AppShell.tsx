@@ -6,6 +6,7 @@ import { DashboardView } from '@/components/dashboard/DashboardView'
 import { GanttView } from '@/components/gantt/GanttView'
 import { ProjectListView } from '@/components/projects/ProjectListView'
 import { ReportView } from '@/components/report/ReportView'
+import { CommandPalette } from '@/components/shared/CommandPalette'
 import {
   initCloudSync, startPolling, onSyncStatusChange, onRemoteUpdated, type SyncStatus,
 } from '@/lib/cloudSync'
@@ -27,6 +28,7 @@ export function AppShell() {
   const [syncStatus, setSyncStatus]   = useState<SyncStatus>('idle')
   const [lastSynced, setLastSynced]   = useState<Date | undefined>()
   const [remoteToast, setRemoteToast] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
   const toastTimer                    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
@@ -48,6 +50,12 @@ export function AppShell() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+K → 명령 팔레트 (입력 중에도 동작)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCommandOpen(v => !v)
+        return
+      }
       // Ctrl+Z / Cmd+Z → Undo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         if (isInInput(e.target)) return
@@ -159,6 +167,9 @@ export function AppShell() {
           다른 사용자가 업데이트했습니다. 자동 반영되었습니다.
         </div>
       )}
+
+      {/* 명령 팔레트 (Cmd/Ctrl+K) */}
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
 
     </div>
   )
