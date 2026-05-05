@@ -177,6 +177,7 @@ export function ReportView() {
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   // 행 수 기준 2페이지 균등 분할 — 두 페이지 행 차이가 최소가 되는 분할점 탐색
+  // 동률 시 1페이지가 더 무겁도록 (일반 문서 관행) → `<=` 비교
   // (임원 밴드 1행 + 프로젝트 n행)
   const totalRows = execRowsData.reduce((sum, { projects }) => sum + 1 + projects.length, 0)
   let bestSplit = execRowsData.length
@@ -186,7 +187,7 @@ export function ReportView() {
     cumulative += 1 + execRowsData[i].projects.length
     const remaining = totalRows - cumulative
     const diff = Math.abs(cumulative - remaining)
-    if (diff < bestDiff) {
+    if (diff <= bestDiff) {
       bestDiff = diff
       bestSplit = i + 1
     }
