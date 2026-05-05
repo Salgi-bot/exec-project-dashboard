@@ -1,10 +1,9 @@
-import { useRef, useMemo, useState } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { getMonthLabels } from '@/constants/periods'
 import { classifyStatus } from '@/utils/statusClassifier'
-import { generatePDF } from '@/utils/pdfExporter'
 import type { StatusCategory, WeekStatus, SheetPeriod } from '@/types/project.types'
 
 const STATUS_CELL_BG: Record<StatusCategory, string> = {
@@ -111,7 +110,6 @@ export function ReportView() {
   const execOrderMap = useAppStore(s => s.execOrder)
   const page1Ref     = useRef<HTMLDivElement>(null)
   const page2Ref     = useRef<HTMLDivElement>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
 
   const monthLabels = sheet ? getMonthLabels(sheet.period) : []
   const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
@@ -202,17 +200,8 @@ export function ReportView() {
   const p2ExecCount = page2Execs.length
   const p2ProjCount = page2Execs.reduce((s, { projects }) => s + projects.length, 0)
 
-  async function handleGeneratePDF() {
-    if (isGenerating) return
-    setIsGenerating(true)
-    try {
-      await generatePDF(page1Ref.current, page2Execs.length > 0 ? page2Ref.current : null)
-    } catch (err) {
-      console.error('[ReportView] PDF 생성 실패:', err)
-      alert('PDF 생성 중 오류가 발생했습니다. 콘솔을 확인하세요.')
-    } finally {
-      setIsGenerating(false)
-    }
+  function handlePrint() {
+    window.print()
   }
 
   function renderTable(execs: typeof execRowsData, pageNum: number, totalPages: number) {
@@ -395,8 +384,8 @@ export function ReportView() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="p-6 print:p-0">
+      <div className="mb-4 flex items-center justify-between no-print">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">■ 출력</h2>
           <p className="text-gray-500 text-sm mt-1">
@@ -405,21 +394,20 @@ export function ReportView() {
         </div>
         <div className="flex flex-col items-end gap-1">
           <button
-            onClick={handleGeneratePDF}
-            disabled={isGenerating}
-            className="px-5 py-2.5 text-white rounded-lg font-medium disabled:opacity-60"
+            onClick={handlePrint}
+            className="px-5 py-2.5 text-white rounded-lg font-medium"
             style={{ backgroundColor: 'var(--ci-blue)' }}
-            onMouseEnter={e => { if (!isGenerating) e.currentTarget.style.backgroundColor = 'var(--ci-blue-dark)' }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue-dark)' }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--ci-blue)' }}
           >
-            {isGenerating ? '생성 중...' : 'PDF 저장'}
+            프린터로 출력
           </button>
-          <span className="text-xs text-gray-500">A4 세로 · 2페이지 고정</span>
+          <span className="text-xs text-gray-500">브라우저 인쇄 다이얼로그 → 프린터 또는 PDF 선택</span>
         </div>
       </div>
 
       {/* 검증 패널 */}
-      <div className="mb-3 grid grid-cols-2 gap-2 text-xs font-mono">
+      <div className="mb-3 grid grid-cols-2 gap-2 text-xs font-mono no-print">
         <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
           <div className="font-bold mb-1 text-green-800">✓ 1페이지</div>
           <div className="text-gray-600">
@@ -435,10 +423,11 @@ export function ReportView() {
       </div>
 
       {/* 화면 미리보기 */}
-      <div className="mb-4 text-xs text-gray-500">아래 미리보기는 실제 PDF 출력과 동일한 레이아웃입니다.</div>
+      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다.</div>
 
-      {/* 캡처 대상: 항상 A4 크기로 고정 렌더 */}
+      {/* 인쇄 대상: A4 크기 페이지 컨테이너 */}
       <div
+        className="a4-pages-container"
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -448,6 +437,7 @@ export function ReportView() {
       >
         <div
           ref={page1Ref}
+          className="a4-page"
           style={{
             width: A4_CONTENT_W_PX,
             height: A4_CONTENT_H_PX,
@@ -464,6 +454,7 @@ export function ReportView() {
         {page2Execs.length > 0 && (
           <div
             ref={page2Ref}
+            className="a4-page"
             style={{
               width: A4_CONTENT_W_PX,
               height: A4_CONTENT_H_PX,
