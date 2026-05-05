@@ -27,14 +27,14 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
 }
 
 // A4 portrait at 96dpi with 10mm margin:
-// 210mm × 297mm -> 793.7 × 1122.5 px ; content = 173mm × 277mm -> 653.9 × 1046.9 px
-const A4_CONTENT_W_PX = 654
+// 210mm × 297mm -> 793.7 × 1122.5 px ; content = 190mm × 277mm -> 718.1 × 1046.9 px
+const A4_CONTENT_W_PX = 720
 const A4_CONTENT_H_PX = 1047
-const PRINT_MONTHS = 5
+const PRINT_MONTHS = 6
 
 // 월별 레이아웃 관련 상수
-const PROJECT_COL_WIDTH_PCT = 32
-const MONTH_COL_WIDTH_PCT = (100 - PROJECT_COL_WIDTH_PCT) / PRINT_MONTHS // 13.6%
+const PROJECT_COL_WIDTH_PCT = 25
+const MONTH_COL_WIDTH_PCT = (100 - PROJECT_COL_WIDTH_PCT) / PRINT_MONTHS // 12.5%
 
 // 폰트·높이 (고정값)
 const TITLE_H_PX = 36
@@ -257,8 +257,11 @@ export function ReportView() {
         <table
           style={{
             width: '100%',
-            borderCollapse: 'collapse',
+            borderCollapse: 'separate',
+            borderSpacing: 0,
             tableLayout: 'fixed',
+            borderTop: '1px solid #374151',
+            borderLeft: '1px solid #374151',
           }}
         >
           <colgroup>
@@ -452,6 +455,7 @@ export function ReportView() {
             boxShadow: '0 0 8px rgba(0,0,0,0.1)',
             boxSizing: 'border-box',
             overflow: 'hidden',
+            fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
           {renderTable(page1Execs, 1, page2Execs.length > 0 ? 2 : 1)}
@@ -479,7 +483,8 @@ export function ReportView() {
 
 function headerCellStyle(): React.CSSProperties {
   return {
-    border: '1px solid #6b7280',
+    borderRight: '1px solid #374151',
+    borderBottom: '1px solid #374151',
     boxSizing: 'border-box',
     padding: '4px 3px',
     lineHeight: 1.2,
@@ -490,7 +495,8 @@ function headerCellStyle(): React.CSSProperties {
 
 function bodyCellStyle(): React.CSSProperties {
   return {
-    border: '1px solid #6b7280',
+    borderRight: '1px solid #374151',
+    borderBottom: '1px solid #374151',
     boxSizing: 'border-box',
     padding: '3px 4px',
     lineHeight: 1.25,
