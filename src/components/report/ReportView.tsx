@@ -225,7 +225,6 @@ export function ReportView() {
         <div style={{
           height: TITLE_H_PX,
           padding: '4px 8px',
-          borderBottom: '1px solid #6b7280',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -328,6 +327,7 @@ export function ReportView() {
                     colSpan={totalCols}
                     style={{
                       ...bodyCellStyle(),
+                      borderTop: '1px solid #374151',
                       textAlign: 'left',
                       fontWeight: 700,
                       fontSize: BAND_FONT_PX,
