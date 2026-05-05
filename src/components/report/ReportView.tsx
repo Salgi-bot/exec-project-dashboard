@@ -266,6 +266,8 @@ export function ReportView() {
         width: '100%',
         borderCollapse: 'collapse',
         tableLayout: 'fixed',
+        border: CELL_BORDER,
+        boxSizing: 'border-box',
       }}>
         <colgroup>
           <col style={{ width: `${PROJECT_COL_WIDTH_PCT}%` }} />
