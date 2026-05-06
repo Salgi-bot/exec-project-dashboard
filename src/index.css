@@ -69,8 +69,13 @@ body {
   .app-main { overflow: visible !important; }
   main { overflow: visible !important; background: #ffffff !important; }
 
-  /* A4 페이지 컨테이너 */
-  .a4-pages-container { gap: 0 !important; padding: 0 !important; margin: 0 !important; }
+  /* A4 페이지 컨테이너 — flex 환경에서는 page-break-after가 무시되므로 block으로 강제 */
+  .a4-pages-container {
+    display: block !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   .a4-page {
     box-shadow: none !important;
     width: 100% !important;
