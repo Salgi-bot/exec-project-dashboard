@@ -262,7 +262,7 @@ export function ReportView() {
   function renderTable(execs: typeof execRowsData) {
     const totalCols = 1 + printMonths
     return (
-      <div style={{ border: CELL_BORDER, boxSizing: 'border-box' }}>
+      <div style={{ border: CELL_BORDER, borderRight: '2px solid #374151', boxSizing: 'border-box' }}>
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
