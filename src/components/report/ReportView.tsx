@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useState, useLayoutEffect } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -131,6 +131,10 @@ export function ReportView() {
   const execOrderMap = useAppStore(s => s.execOrder)
   const page1Ref     = useRef<HTMLDivElement>(null)
   const page2Ref     = useRef<HTMLDivElement>(null)
+  const content1Ref  = useRef<HTMLDivElement>(null)
+  const content2Ref  = useRef<HTMLDivElement>(null)
+  const [scale1, setScale1] = useState(1)
+  const [scale2, setScale2] = useState(1)
 
   const monthLabels = sheet ? getMonthLabels(sheet.period) : []
   const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
@@ -181,6 +185,19 @@ export function ReportView() {
       return { exec, projects }
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
+
+  // 각 페이지 내용을 A4 1장 높이에 맞게 자동 축소 — 1페이지가 다음 장으로 넘쳐 3장 출력되는 것 방지
+  useLayoutEffect(() => {
+    const FIT_H = A4_CONTENT_H_PX - 4
+    const fit = (ref: React.RefObject<HTMLDivElement | null>, set: (n: number) => void) => {
+      const el = ref.current
+      if (!el) return
+      const h = el.scrollHeight
+      set(h > FIT_H ? FIT_H / h : 1)
+    }
+    fit(content1Ref, setScale1)
+    fit(content2Ref, setScale2)
+  })
 
   const yearGroups = useMemo(() => {
     const groups: { year: string; colSpan: number }[] = []
@@ -452,14 +469,22 @@ export function ReportView() {
         }}
       >
         <div ref={page1Ref} className="a4-page" style={pageStyle}>
-          {renderPageHeader(1)}
-          {renderTable(page1Execs)}
+          <div style={{ height: scale1 < 1 ? A4_CONTENT_H_PX - 4 : 'auto', overflow: 'hidden' }}>
+            <div ref={content1Ref} style={{ transform: `scale(${scale1})`, transformOrigin: 'top left', width: A4_CONTENT_W_PX }}>
+              {renderPageHeader(1)}
+              {renderTable(page1Execs)}
+            </div>
+          </div>
         </div>
 
         {page2Execs.length > 0 && (
           <div ref={page2Ref} className="a4-page" style={pageStyle}>
-            {renderPageHeader(2)}
-            {renderTable(page2Execs)}
+            <div style={{ height: scale2 < 1 ? A4_CONTENT_H_PX - 4 : 'auto', overflow: 'hidden' }}>
+              <div ref={content2Ref} style={{ transform: `scale(${scale2})`, transformOrigin: 'top left', width: A4_CONTENT_W_PX }}>
+                {renderPageHeader(2)}
+                {renderTable(page2Execs)}
+              </div>
+            </div>
           </div>
         )}
       </div>
