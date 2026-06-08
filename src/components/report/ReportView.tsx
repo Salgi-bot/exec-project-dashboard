@@ -141,7 +141,8 @@ export function ReportView() {
   const printLabels = monthLabels.slice(adjustedStart, adjustedStart + printMonths)
 
   const printProjects = allProjects.filter(p => {
-    if (p.isManagerSummaryRow) return false
+    // 내용(텍스트)이 있는 요약행(예: 이동석 본부장 "업무 현황")은 출력에 포함, 빈 요약행만 제외
+    if (p.isManagerSummaryRow) return (p.weekStatuses ?? []).some(w => (w.text ?? '').trim() !== '')
     for (let slotIdx = 0; slotIdx < printMonths; slotIdx++) {
       const sheetMonthIdx = adjustedStart + slotIdx
       const { text } = getMonthlyStatus(p.weekStatuses, sheetMonthIdx)
