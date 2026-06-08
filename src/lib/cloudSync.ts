@@ -5,6 +5,10 @@ import type { SheetId } from '@/types/project.types'
 
 const STATE_ID = 'main'
 
+// 마지막으로 인지한 서버 버전(updated_at). 저장 시 이 버전일 때만 덮어쓴다(낙관적 동시성).
+// → 복원 전 열어둔 옛 탭이 최신 데이터를 통째로 덮어버리는 사고를 구조적으로 방지.
+let lastKnownUpdatedAt: string | null = null
+
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 let _onStatus:       ((s: SyncStatus, at?: Date) => void) | null = null
@@ -85,19 +89,54 @@ function mergeWithLocal(remoteState: ReturnType<typeof getPersistedState>): Retu
   }
 }
 
-// ── 저장 ──────────────────────────────────────────────────
+// ── 저장 (낙관적 동시성) ───────────────────────────────────
+// 내가 아는 서버 버전(lastKnownUpdatedAt)일 때만 덮어쓴다. 그 사이 다른 사람이 저장했으면
+// (버전 충돌) 통째로 덮지 않고 최신본을 받아 내 변경만 병합 후 재저장한다.
 async function saveToSupabase(retries = 2): Promise<boolean> {
-  const persisted = getPersistedState()
-  if (!hasData(persisted)) return false
-
   for (let i = 0; i <= retries; i++) {
+    const persisted = getPersistedState()
+    if (!hasData(persisted)) return false
     try {
-      const { error } = await supabase.from('app_state').upsert({
-        id:         STATE_ID,
-        data:       persisted,
-        updated_at: new Date().toISOString(),
-      })
+      const now = new Date().toISOString()
+
+      if (lastKnownUpdatedAt) {
+        // 조건부 업데이트: 내가 아는 버전일 때만 적용
+        const { data, error } = await supabase
+          .from('app_state')
+          .update({ data: persisted, updated_at: now })
+          .eq('id', STATE_ID)
+          .eq('updated_at', lastKnownUpdatedAt)
+          .select('updated_at')
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          lastKnownUpdatedAt = data[0].updated_at as string
+          notify('saved', new Date())
+          return true
+        }
+
+        // 0행 = 그 사이 다른 사람이 저장함 → 최신본을 받아 내 변경과 병합(통째 덮어쓰기 방지)
+        const fresh = await supabase
+          .from('app_state')
+          .select('data,updated_at')
+          .eq('id', STATE_ID)
+          .single()
+        if (!fresh.error && fresh.data && hasData(fresh.data.data)) {
+          lastKnownUpdatedAt = fresh.data.updated_at as string
+          const merged = mergeWithLocal(fresh.data.data)
+          // 병합본 반영 → 실제 변경이 있으면 구독이 올바른 버전으로 재저장 트리거
+          useAppStore.setState(syncExecutiveTitles(merged as ReturnType<typeof useAppStore.getState>))
+        }
+        return false
+      }
+
+      // 서버 버전 미상(최초 저장) → upsert로 생성/덮어쓰기
+      const { data, error } = await supabase
+        .from('app_state')
+        .upsert({ id: STATE_ID, data: persisted, updated_at: now })
+        .select('updated_at')
       if (error) throw error
+      if (data && data.length > 0) lastKnownUpdatedAt = data[0].updated_at as string
       notify('saved', new Date())
       return true
     } catch (e) {
@@ -117,11 +156,12 @@ export async function loadFromCloud(): Promise<boolean> {
   try {
     const { data, error } = await supabase
       .from('app_state')
-      .select('data')
+      .select('data,updated_at')
       .eq('id', STATE_ID)
       .single()
     if (error) throw error
     if (hasData(data?.data)) {
+      lastKnownUpdatedAt = data.updated_at as string
       useAppStore.setState(syncExecutiveTitles(data.data))
       notify('saved', new Date())
       return true
@@ -144,6 +184,7 @@ export function startPolling(): () => void {
       (payload) => {
         const remoteState = payload.new?.data
         if (!hasData(remoteState)) return
+        if (payload.new?.updated_at) lastKnownUpdatedAt = payload.new.updated_at as string
 
         // 프로젝트 단위 자동 병합 (내 수정 보존 + 원격 수정 반영)
         const merged = mergeWithLocal(remoteState)
@@ -167,13 +208,14 @@ export async function initCloudSync(): Promise<void> {
   try {
     const { data, error } = await supabase
       .from('app_state')
-      .select('data')
+      .select('data,updated_at')
       .eq('id', STATE_ID)
       .single()
 
     if (error) console.warn('[CloudSync] 초기 로드 실패:', error)
 
     if (data && hasData(data.data)) {
+      lastKnownUpdatedAt = data.updated_at as string
       useAppStore.setState(syncExecutiveTitles(data.data))
       notify('saved', new Date())
     } else {
