@@ -186,12 +186,13 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 각 페이지 내용을 A4 1장 높이에 맞게 자동 축소 — 1페이지가 다음 장으로 넘쳐 3장 출력되는 것 방지
+  // 각 페이지 내용을 A4 1장 높이에 맞게 자동 축소(zoom) — 1페이지가 다음 장으로 넘쳐 3장 출력되는 것 방지.
+  // 측정은 zoom 미적용 숨김 노드(content*Ref)에서 수행 → 자연 높이로 안정 측정(측정↔적용 피드백 진동 방지).
   useLayoutEffect(() => {
-    const FIT_H = A4_CONTENT_H_PX - 4
+    const FIT_H = A4_CONTENT_H_PX - 12 // 인쇄 시 여백 적용 폭 차이·보더 반올림 대비 안전 여유
     const fit = (ref: React.RefObject<HTMLDivElement | null>, set: (n: number) => void) => {
       const el = ref.current
-      if (!el) return
+      if (!el) { set(1); return }
       const h = el.scrollHeight
       set(h > FIT_H ? FIT_H / h : 1)
     }
@@ -459,6 +460,24 @@ export function ReportView() {
 
       <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다.</div>
 
+      {/* 측정 전용(숨김·zoom 미적용) — 자연 높이로 scale 산출. zoom된 표시 노드를 재측정하면 진동하므로 분리 */}
+      <div
+        className="no-print"
+        aria-hidden
+        style={{ position: 'absolute', left: -99999, top: 0, width: A4_CONTENT_W_PX, visibility: 'hidden', pointerEvents: 'none' }}
+      >
+        <div ref={content1Ref}>
+          {renderPageHeader(1)}
+          {renderTable(page1Execs)}
+        </div>
+        {page2Execs.length > 0 && (
+          <div ref={content2Ref}>
+            {renderPageHeader(2)}
+            {renderTable(page2Execs)}
+          </div>
+        )}
+      </div>
+
       <div
         className="a4-pages-container"
         style={{
@@ -469,21 +488,17 @@ export function ReportView() {
         }}
       >
         <div ref={page1Ref} className="a4-page" style={pageStyle}>
-          <div style={{ height: scale1 < 1 ? A4_CONTENT_H_PX - 4 : 'auto', overflow: 'hidden' }}>
-            <div ref={content1Ref} style={{ transform: `scale(${scale1})`, transformOrigin: 'top left', width: A4_CONTENT_W_PX }}>
-              {renderPageHeader(1)}
-              {renderTable(page1Execs)}
-            </div>
+          <div style={{ zoom: scale1, width: A4_CONTENT_W_PX }}>
+            {renderPageHeader(1)}
+            {renderTable(page1Execs)}
           </div>
         </div>
 
         {page2Execs.length > 0 && (
           <div ref={page2Ref} className="a4-page" style={pageStyle}>
-            <div style={{ height: scale2 < 1 ? A4_CONTENT_H_PX - 4 : 'auto', overflow: 'hidden' }}>
-              <div ref={content2Ref} style={{ transform: `scale(${scale2})`, transformOrigin: 'top left', width: A4_CONTENT_W_PX }}>
-                {renderPageHeader(2)}
-                {renderTable(page2Execs)}
-              </div>
+            <div style={{ zoom: scale2, width: A4_CONTENT_W_PX }}>
+              {renderPageHeader(2)}
+              {renderTable(page2Execs)}
             </div>
           </div>
         )}
