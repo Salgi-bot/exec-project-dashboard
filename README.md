@@ -1,4 +1,15 @@
-# React + TypeScript + Vite
+# 임원대시보드 (React + TypeScript + Vite)
+
+## Supabase / 실시간 동기화 ★
+
+- 백엔드는 Supabase `app_state` 단일 행(JSON). 동기화 로직은 `src/lib/cloudSync.ts`.
+- **DB를 새로 세우거나 복원하면 `supabase/setup.sql` 을 SQL Editor 에 실행할 것.**
+  여기에 테이블 정의 + Realtime publication 등록이 멱등으로 들어 있다.
+- ⚠️ 흔한 함정: `app_state` 가 `supabase_realtime` publication 에 빠져 있으면
+  클라이언트 구독은 되는데(SUBSCRIBED) 서버 푸시가 안 와 **조용히 실패**한다.
+  대시보드 Database → Publications 에서 `app_state` 토글 ON 확인. (2026-06-22 사고)
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
