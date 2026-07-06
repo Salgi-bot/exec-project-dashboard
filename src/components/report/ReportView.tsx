@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useLayoutEffect } from 'react'
+import { useMemo } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -129,12 +129,6 @@ export function ReportView() {
   const sheet        = useActiveSheet()
   const allProjects  = useFilteredProjects()
   const execOrderMap = useAppStore(s => s.execOrder)
-  const page1Ref     = useRef<HTMLDivElement>(null)
-  const page2Ref     = useRef<HTMLDivElement>(null)
-  const content1Ref  = useRef<HTMLDivElement>(null)
-  const content2Ref  = useRef<HTMLDivElement>(null)
-  const [scale1, setScale1] = useState(1)
-  const [scale2, setScale2] = useState(1)
 
   const monthLabels = sheet ? getMonthLabels(sheet.period) : []
   const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
@@ -186,20 +180,6 @@ export function ReportView() {
     }).filter(Boolean) as { exec: typeof orderedExecs[0]; projects: typeof printProjects }[]
   }, [orderedExecs, grouped])
 
-  // 각 페이지 내용을 A4 1장 높이에 맞게 자동 축소(zoom) — 1페이지가 다음 장으로 넘쳐 3장 출력되는 것 방지.
-  // 측정은 zoom 미적용 숨김 노드(content*Ref)에서 수행 → 자연 높이로 안정 측정(측정↔적용 피드백 진동 방지).
-  useLayoutEffect(() => {
-    const FIT_H = A4_CONTENT_H_PX - 12 // 인쇄 시 여백 적용 폭 차이·보더 반올림 대비 안전 여유
-    const fit = (ref: React.RefObject<HTMLDivElement | null>, set: (n: number) => void) => {
-      const el = ref.current
-      if (!el) { set(1); return }
-      const h = el.scrollHeight
-      set(h > FIT_H ? FIT_H / h : 1)
-    }
-    fit(content1Ref, setScale1)
-    fit(content2Ref, setScale2)
-  })
-
   const yearGroups = useMemo(() => {
     const groups: { year: string; colSpan: number }[] = []
     for (const ml of printLabels) {
@@ -212,74 +192,22 @@ export function ReportView() {
 
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
-  // 행 차이 최소화 + 동률 시 1페이지 우선 (`<=`)
-  const totalRows = execRowsData.reduce((sum, { projects }) => sum + 1 + projects.length, 0)
-  let bestSplit = execRowsData.length
-  let bestDiff = Infinity
-  let cumulative = 0
-  for (let i = 0; i < execRowsData.length; i++) {
-    cumulative += 1 + execRowsData[i].projects.length
-    const remaining = totalRows - cumulative
-    const diff = Math.abs(cumulative - remaining)
-    if (diff <= bestDiff) {
-      bestDiff = diff
-      bestSplit = i + 1
-    }
-  }
-  const splitIdx = bestSplit
-  const page1Execs = execRowsData.slice(0, splitIdx)
-  const page2Execs = execRowsData.slice(splitIdx)
-
-  const p1ExecCount = page1Execs.length
-  const p1ProjCount = page1Execs.reduce((s, { projects }) => s + projects.length, 0)
-  const p2ExecCount = page2Execs.length
-  const p2ProjCount = page2Execs.reduce((s, { projects }) => s + projects.length, 0)
-  const totalPages = page2Execs.length > 0 ? 2 : 1
+  const totalExecCount = execRowsData.length
+  const totalProjCount = execRowsData.reduce((s, { projects }) => s + projects.length, 0)
 
   function handlePrint() {
     window.print()
   }
 
-  function renderPageHeader(pageNum: number) {
-    const today = new Date()
-    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
-    return (
-      <div style={{
-        height: TITLE_H_PX,
-        padding: '4px 8px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-      }}>
-        <h1 style={{
-          margin: 0,
-          fontSize: 16,
-          fontWeight: 700,
-          color: '#1f2937',
-        }}>
-          ■ 임원회의 PROJECT 진행일정표
-        </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 10, color: '#6b7280' }}>출력일자: {dateStr}</span>
-          <span style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: '#374151',
-            padding: '2px 8px',
-            border: '1px solid #d1d5db',
-            borderRadius: 4,
-            backgroundColor: '#f9fafb',
-          }}>
-            {pageNum} / {totalPages}
-          </span>
-        </div>
-      </div>
-    )
-  }
-
+  // 전체 임원을 하나의 표로 렌더 → 인쇄 시 브라우저 자연 페이지 분할.
+  //   · <thead>(제목/월 헤더)는 매 페이지 자동 반복
+  //   · 각 행(tr)은 break-inside:avoid 로 페이지 경계에서 잘리지 않음
+  //   · 임원 밴드 헤더(.exec-band)는 break-after:avoid 로 첫 행과 붙어 고아행 방지
+  // zoom/transform 축소를 쓰지 않으므로 Chrome·Safari 모두 동일하게 동작(엔진 무관).
   function renderTable(execs: typeof execRowsData) {
     const totalCols = 1 + printMonths
+    const today = new Date()
+    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
     return (
       <table style={{
         width: '100%',
@@ -295,6 +223,23 @@ export function ReportView() {
           ))}
         </colgroup>
         <thead>
+          {/* 제목 행 — thead 안에 두어 매 인쇄 페이지 상단에 자동 반복 */}
+          <tr style={{ backgroundColor: '#ffffff', height: TITLE_H_PX }}>
+            <th
+              colSpan={totalCols}
+              style={{
+                ...headerCellStyle,
+                padding: '4px 8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
+                  ■ 임원회의 PROJECT 진행일정표
+                </span>
+                <span style={{ fontSize: 10, fontWeight: 400, color: '#6b7280' }}>출력일자: {dateStr}</span>
+              </div>
+            </th>
+          </tr>
           <tr style={{ backgroundColor: '#d1d5db', height: MIN_ROW_H_PX }}>
             <th
               rowSpan={2}
@@ -347,7 +292,7 @@ export function ReportView() {
           {execs.map(({ exec, projects }) => {
             if (!exec) return null
             return [
-              <tr key={`band-${exec.id}`} style={{ backgroundColor: '#e5e7eb', height: MIN_ROW_H_PX }}>
+              <tr key={`band-${exec.id}`} className="exec-band" style={{ backgroundColor: '#e5e7eb', height: MIN_ROW_H_PX }}>
                 <td
                   colSpan={totalCols}
                   style={{
@@ -410,13 +355,14 @@ export function ReportView() {
     )
   }
 
+  // 화면 미리보기용 A4-폭 시트. 고정 높이·overflow 없이 내용만큼 늘어나게 두어
+  // (자연 흐름 인쇄와 동일) 미리보기에서도 전체 내용이 보이도록 한다.
   const pageStyle: React.CSSProperties = {
     width: A4_CONTENT_W_PX,
-    height: A4_CONTENT_H_PX,
+    minHeight: A4_CONTENT_H_PX,
     backgroundColor: '#ffffff',
     boxShadow: '0 0 8px rgba(0,0,0,0.1)',
     boxSizing: 'border-box',
-    overflow: 'hidden',
     fontFamily: PRINT_FONT_FAMILY,
   }
 
@@ -443,65 +389,26 @@ export function ReportView() {
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-2 text-xs font-mono no-print">
-        <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
-          <div className="font-bold mb-1 text-green-800">✓ 1페이지</div>
-          <div className="text-gray-600">
-            {p1ExecCount}개 임원, {p1ProjCount}건 프로젝트
-          </div>
-        </div>
-        <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2">
-          <div className="font-bold mb-1 text-green-800">✓ 2페이지</div>
-          <div className="text-gray-600">
-            {p2ExecCount}개 임원, {p2ProjCount}건 프로젝트
-          </div>
+      <div className="mb-3 text-xs font-mono no-print">
+        <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 inline-block">
+          <span className="font-bold text-green-800">✓ 전체 </span>
+          <span className="text-gray-600">{totalExecCount}개 임원, {totalProjCount}건 프로젝트 · 인쇄 시 자동 페이지 분할</span>
         </div>
       </div>
 
-      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다.</div>
-
-      {/* 측정 전용(숨김·zoom 미적용) — 자연 높이로 scale 산출. zoom된 표시 노드를 재측정하면 진동하므로 분리 */}
-      <div
-        className="no-print"
-        aria-hidden
-        style={{ position: 'absolute', left: -99999, top: 0, width: A4_CONTENT_W_PX, visibility: 'hidden', pointerEvents: 'none' }}
-      >
-        <div ref={content1Ref}>
-          {renderPageHeader(1)}
-          {renderTable(page1Execs)}
-        </div>
-        {page2Execs.length > 0 && (
-          <div ref={content2Ref}>
-            {renderPageHeader(2)}
-            {renderTable(page2Execs)}
-          </div>
-        )}
-      </div>
+      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다. 인쇄 시 행이 페이지 경계에서 잘리지 않도록 자동으로 나뉩니다.</div>
 
       <div
         className="a4-pages-container"
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 20,
-          alignItems: 'flex-start',
+          alignItems: 'center',
         }}
       >
-        <div ref={page1Ref} className="a4-page" style={pageStyle}>
-          <div style={{ zoom: scale1, width: A4_CONTENT_W_PX }}>
-            {renderPageHeader(1)}
-            {renderTable(page1Execs)}
-          </div>
+        <div className="a4-page" style={pageStyle}>
+          {renderTable(execRowsData)}
         </div>
-
-        {page2Execs.length > 0 && (
-          <div ref={page2Ref} className="a4-page" style={pageStyle}>
-            <div style={{ zoom: scale2, width: A4_CONTENT_W_PX }}>
-              {renderPageHeader(2)}
-              {renderTable(page2Execs)}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
