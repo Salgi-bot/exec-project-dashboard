@@ -153,18 +153,25 @@ export function startPolling(): () => void {
       (payload) => {
         const remoteState = payload.new?.data
         if (!hasData(remoteState)) return
-        if (payload.new?.updated_at) lastKnownUpdatedAt = payload.new.updated_at as string
+
+        const incoming = payload.new?.updated_at as string | undefined
+        // 내가 이미 아는 버전(내 저장의 에코 등)이면 재처리 불필요 → 무한 에코 방지
+        if (incoming && incoming === lastKnownUpdatedAt) return
 
         // 프로젝트 단위 자동 병합 (내 수정·신규 등록 보존 + 원격 수정 반영)
+        const before = JSON.stringify(getPersistedState())
         const merged = mergeWithLocal(remoteState, getPersistedState())
         useAppStore.setState(syncExecutiveTitles(merged as ReturnType<typeof useAppStore.getState>))
-        notify('saved', new Date())
-        _onRemoteUpdate?.()
+        if (incoming) lastKnownUpdatedAt = incoming
 
-        // 병합 결과를 즉시 저장 (내 변경 + 원격 변경 통합본)
-        if (merged.editQueue.length > 0) {
-          setTimeout(() => saveToSupabase(), 500)
+        // 실제로 내 화면 데이터가 바뀐 경우에만 알림(동일 데이터 에코 → 무음)
+        if (JSON.stringify(getPersistedState()) !== before) {
+          notify('saved', new Date())
+          _onRemoteUpdate?.()
         }
+        // ※ 매 업데이트마다 무조건 하던 재저장(구 코드)은 제거.
+        //   진짜 로컬 변경은 initCloudSync 구독(subscribe)이 스냅샷 변화로 감지해 밀어준다.
+        //   그 무조건 재저장이 탭들이 서로/자기 저장을 끝없이 되쓰던 에코 스톰의 원인이었다.
       }
     )
     .subscribe()
