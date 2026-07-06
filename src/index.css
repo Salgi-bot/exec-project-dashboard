@@ -76,23 +76,29 @@ body {
     padding: 0 !important;
     margin: 0 !important;
   }
+  /* 각 .a4-page = 한 물리 페이지. 페이지 사이는 블록 레벨 강제 break로 나눈다.
+     ★ WebKit(Safari)은 <tr>의 break-inside/after는 무시하지만 블록 레벨 page-break는 존중한다.
+        (보스 원본 PDF에서 두 페이지 div 사이가 깔끔히 나뉜 것으로 확인) */
   .a4-page {
     box-shadow: none !important;
     width: 100% !important;
     min-height: 0 !important;
     height: auto !important;
     overflow: visible !important;
-    margin: 0 auto !important;   /* 인쇄 폭 내 중앙정렬 */
+    margin: 0 auto !important;              /* 인쇄 폭 내 중앙정렬 */
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;               /* 한 페이지 내용은 통째로 (섹션 단위로 미리 맞춤) */
+    break-inside: avoid;
   }
-
-  /* 자연 페이지 분할 규칙 (Chrome·Safari 공통, zoom/transform 미사용) */
+  .a4-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  /* 각 페이지 div가 자체 thead 보유 → 페이지마다 제목+월 헤더 표시(반복 CSS 불필요) */
   .a4-page table { page-break-inside: auto; }
-  /* 표 머리글(제목+월 헤더)을 매 페이지 상단에 자동 반복 */
-  .a4-page thead { display: table-header-group; }
-  /* 각 행은 페이지 경계에서 잘리지 않게 */
+  /* 행 잘림 방지(폴백) — 정상 경로에선 페이지 경계가 섹션 사이에만 있어 발동 안 함 */
   .a4-page tr { page-break-inside: avoid; break-inside: avoid; }
-  /* 임원 밴드 헤더가 페이지 맨 아래 고아로 남지 않도록 다음 행과 붙임 */
-  .a4-page tr.exec-band { page-break-after: avoid; break-after: avoid; }
 
   /* 인쇄 시 색상 보존 (배경/테두리 유지) */
   * {
