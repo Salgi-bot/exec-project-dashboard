@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useRef, useLayoutEffect } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -29,6 +29,9 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
 // 210mm × 297mm -> content 190mm × 277mm -> 718.1 × 1046.9 px
 const A4_CONTENT_W_PX = 720
 const A4_CONTENT_H_PX = 1047
+// 인쇄(print-media)는 화면 측정보다 살짝 크게 렌더될 수 있어, 페이지당 목표 높이에서
+// 이 여유를 뺀다. WebKit(Safari 엔진) 실측 델타로 보정한 값.
+const PAGE_SAFETY_PX = 24
 const PRINT_MONTHS = 6
 
 const PROJECT_COL_WIDTH_PCT = 25
@@ -130,6 +133,13 @@ export function ReportView() {
   const allProjects  = useFilteredProjects()
   const execOrderMap = useAppStore(s => s.execOrder)
 
+  // 측정용 숨김 노드(전체 표 1개)에서 각 임원 섹션의 자연 높이를 재고,
+  // 페이지당 목표 높이에 맞춰 "섹션 단위"로 페이지를 나눈다(행 중간 분할 방지).
+  const measureRef = useRef<HTMLDivElement>(null)
+  const bandEls    = useRef<Record<string, HTMLTableRowElement | null>>({})
+  // pageGroups: 각 페이지에 들어갈 execRowsData 인덱스 배열의 배열
+  const [pageGroups, setPageGroups] = useState<number[][]>([])
+
   const monthLabels = sheet ? getMonthLabels(sheet.period) : []
   const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
@@ -190,6 +200,44 @@ export function ReportView() {
     return groups
   }, [printLabels])
 
+  // ── 섹션 단위 페이지 분할 계산 ──────────────────────────────
+  // 측정 노드(전체 표)에서 thead 높이와 각 임원 섹션 높이를 재고, 페이지당 목표 높이
+  // (A4 내용높이 − thead − 안전여유)에 맞춰 섹션을 그리디로 페이지에 담는다.
+  // 페이지 경계가 항상 "섹션 사이"에만 생기므로 행이 잘리거나 밴드 헤더가 고아로 남지 않는다.
+  // (WebThe: WebKit은 <tr> break-inside/after를 무시하지만 블록 레벨 page-break는 존중)
+  useLayoutEffect(() => {
+    const container = measureRef.current
+    const table = container?.querySelector('table')
+    if (!table) return
+    const tableRect = table.getBoundingClientRect()
+    const n = execRowsData.length
+    if (n === 0) { setPageGroups(prev => (prev.length === 0 ? prev : [])); return }
+
+    const tops = execRowsData.map(d => {
+      const el = d.exec ? bandEls.current[d.exec.id] : null
+      return el ? el.getBoundingClientRect().top : tableRect.top
+    })
+    const theadH = tops[0] - tableRect.top
+    const sectionH = tops.map((t, i) => (i < n - 1 ? tops[i + 1] : tableRect.bottom) - t)
+    const targetH = A4_CONTENT_H_PX - theadH - PAGE_SAFETY_PX
+
+    const pages: number[][] = []
+    let cur: number[] = []
+    let curH = 0
+    for (let i = 0; i < n; i++) {
+      if (cur.length > 0 && curH + sectionH[i] > targetH) { pages.push(cur); cur = []; curH = 0 }
+      cur.push(i)
+      curH += sectionH[i]
+    }
+    if (cur.length) pages.push(cur)
+
+    setPageGroups(prev => {
+      const same = prev.length === pages.length &&
+        prev.every((g, i) => g.length === pages[i].length && g.every((v, j) => v === pages[i][j]))
+      return same ? prev : pages
+    })
+  }, [execRowsData, printMonths])
+
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   const totalExecCount = execRowsData.length
@@ -199,12 +247,12 @@ export function ReportView() {
     window.print()
   }
 
-  // 전체 임원을 하나의 표로 렌더 → 인쇄 시 브라우저 자연 페이지 분할.
-  //   · <thead>(제목/월 헤더)는 매 페이지 자동 반복
-  //   · 각 행(tr)은 break-inside:avoid 로 페이지 경계에서 잘리지 않음
-  //   · 임원 밴드 헤더(.exec-band)는 break-after:avoid 로 첫 행과 붙어 고아행 방지
-  // zoom/transform 축소를 쓰지 않으므로 Chrome·Safari 모두 동일하게 동작(엔진 무관).
-  function renderTable(execs: typeof execRowsData) {
+  // 한 페이지 분량의 임원 섹션들을 표 하나로 렌더(각 페이지 div가 자체 thead 보유 → 매 페이지 헤더).
+  // bandRef: 측정 노드에서만 전달 — 각 임원 밴드 행의 DOM을 수집해 섹션 높이를 잰다.
+  function renderTable(
+    execs: typeof execRowsData,
+    bandRef?: (id: string, el: HTMLTableRowElement | null) => void,
+  ) {
     const totalCols = 1 + printMonths
     const today = new Date()
     const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
@@ -292,7 +340,12 @@ export function ReportView() {
           {execs.map(({ exec, projects }) => {
             if (!exec) return null
             return [
-              <tr key={`band-${exec.id}`} className="exec-band" style={{ backgroundColor: '#e5e7eb', height: MIN_ROW_H_PX }}>
+              <tr
+                key={`band-${exec.id}`}
+                ref={bandRef ? el => bandRef(exec.id, el) : undefined}
+                className="exec-band"
+                style={{ backgroundColor: '#e5e7eb', height: MIN_ROW_H_PX }}
+              >
                 <td
                   colSpan={totalCols}
                   style={{
@@ -366,6 +419,11 @@ export function ReportView() {
     fontFamily: PRINT_FONT_FAMILY,
   }
 
+  // 측정 전(첫 페인트)·측정 실패 시 폴백: 전체를 한 페이지에 담아 최소한 빈 화면은 피한다.
+  const pages = pageGroups.length
+    ? pageGroups
+    : (execRowsData.length ? [execRowsData.map((_, i) => i)] : [])
+
   return (
     <div className="p-6 print:p-0">
       <div className="mb-4 flex items-center justify-between no-print">
@@ -392,11 +450,21 @@ export function ReportView() {
       <div className="mb-3 text-xs font-mono no-print">
         <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 inline-block">
           <span className="font-bold text-green-800">✓ 전체 </span>
-          <span className="text-gray-600">{totalExecCount}개 임원, {totalProjCount}건 프로젝트 · 인쇄 시 자동 페이지 분할</span>
+          <span className="text-gray-600">{totalExecCount}개 임원, {totalProjCount}건 · {pages.length}페이지 (임원 섹션 단위 분할)</span>
         </div>
       </div>
 
-      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다. 인쇄 시 행이 페이지 경계에서 잘리지 않도록 자동으로 나뉩니다.</div>
+      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다. 각 임원 섹션이 페이지 경계에서 잘리지 않도록 페이지가 나뉩니다.</div>
+
+      {/* 측정 전용(숨김) — 전체 표를 렌더해 각 임원 섹션의 자연 높이를 잰다 */}
+      <div
+        ref={measureRef}
+        className="no-print"
+        aria-hidden
+        style={{ position: 'absolute', left: -99999, top: 0, width: A4_CONTENT_W_PX, visibility: 'hidden', pointerEvents: 'none' }}
+      >
+        {renderTable(execRowsData, (id, el) => { bandEls.current[id] = el })}
+      </div>
 
       <div
         className="a4-pages-container"
@@ -404,11 +472,14 @@ export function ReportView() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          gap: 20,
         }}
       >
-        <div className="a4-page" style={pageStyle}>
-          {renderTable(execRowsData)}
-        </div>
+        {pages.map((idxs, pi) => (
+          <div className="a4-page" style={pageStyle} key={pi}>
+            {renderTable(idxs.map(i => execRowsData[i]))}
+          </div>
+        ))}
       </div>
     </div>
   )
