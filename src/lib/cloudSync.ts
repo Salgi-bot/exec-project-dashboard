@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import { useAppStore } from '@/store/appStore'
 import { EXECUTIVE_MAP } from '@/constants/executives'
-import type { SheetId } from '@/types/project.types'
+import { mergeWithLocal } from './mergeState'
 
 const STATE_ID = 'main'
 
@@ -56,38 +56,7 @@ function hasData(state: ReturnType<typeof getPersistedState> | null) {
   return !!(state?.fileName && Object.keys(state?.sheets ?? {}).length > 0)
 }
 
-// 프로젝트 단위 병합: 내가 수정한 프로젝트는 내 버전, 나머지는 원격 버전
-function mergeWithLocal(remoteState: ReturnType<typeof getPersistedState>): ReturnType<typeof getPersistedState> {
-  const local = getPersistedState()
-  const localEditedIds = new Set(local.editQueue.map(e => e.projectId))
-
-  if (localEditedIds.size === 0) return remoteState  // 로컬 변경 없으면 원격 그대로
-
-  const mergedSheets = { ...remoteState.sheets }
-  for (const sheetId of Object.keys(remoteState.sheets ?? {}) as SheetId[]) {
-    const remoteSheet = remoteState.sheets?.[sheetId]
-    const localSheet  = local.sheets?.[sheetId]
-    if (!remoteSheet || !localSheet) continue
-
-    const localMap = new Map(localSheet.projects.map(p => [p.id, p]))
-    mergedSheets[sheetId] = {
-      ...remoteSheet,
-      projects: remoteSheet.projects.map(p =>
-        localEditedIds.has(p.id) ? (localMap.get(p.id) ?? p) : p
-      ),
-    }
-  }
-
-  return {
-    ...remoteState,
-    sheets:            mergedSheets,
-    editQueue:         local.editQueue,
-    assigneeOverrides: { ...remoteState.assigneeOverrides, ...local.assigneeOverrides },
-    projectOrderMap:   { ...remoteState.projectOrderMap,   ...local.projectOrderMap   },
-    projectMetaEdits:  { ...remoteState.projectMetaEdits,  ...local.projectMetaEdits  },
-    execOrder:         Object.keys(local.execOrder ?? {}).length > 0 ? local.execOrder : remoteState.execOrder,
-  }
-}
+// 프로젝트 단위 병합은 순수 모듈 mergeState.ts 로 분리(단위 테스트 대상).
 
 // ── 저장 (낙관적 동시성) ───────────────────────────────────
 // 내가 아는 서버 버전(lastKnownUpdatedAt)일 때만 덮어쓴다. 그 사이 다른 사람이 저장했으면
@@ -123,7 +92,7 @@ async function saveToSupabase(retries = 2): Promise<boolean> {
           .single()
         if (!fresh.error && fresh.data && hasData(fresh.data.data)) {
           lastKnownUpdatedAt = fresh.data.updated_at as string
-          const merged = mergeWithLocal(fresh.data.data)
+          const merged = mergeWithLocal(fresh.data.data, getPersistedState())
           // 병합본 반영 → 실제 변경이 있으면 구독이 올바른 버전으로 재저장 트리거
           useAppStore.setState(syncExecutiveTitles(merged as ReturnType<typeof useAppStore.getState>))
         }
@@ -186,8 +155,8 @@ export function startPolling(): () => void {
         if (!hasData(remoteState)) return
         if (payload.new?.updated_at) lastKnownUpdatedAt = payload.new.updated_at as string
 
-        // 프로젝트 단위 자동 병합 (내 수정 보존 + 원격 수정 반영)
-        const merged = mergeWithLocal(remoteState)
+        // 프로젝트 단위 자동 병합 (내 수정·신규 등록 보존 + 원격 수정 반영)
+        const merged = mergeWithLocal(remoteState, getPersistedState())
         useAppStore.setState(syncExecutiveTitles(merged as ReturnType<typeof useAppStore.getState>))
         notify('saved', new Date())
         _onRemoteUpdate?.()
