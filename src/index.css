@@ -69,36 +69,36 @@ body {
   .app-main { overflow: visible !important; }
   main { overflow: visible !important; background: #ffffff !important; }
 
-  /* A4 컨테이너 — 단일 표를 자연 흐름으로 인쇄(브라우저가 페이지를 알아서 분할) */
+  /* A4 컨테이너 — 제목 1회 + 임원 섹션들을 자연 흐름으로 인쇄.
+     페이지 분할은 브라우저가 .exec-section 경계에서 자동 수행한다(JS 강제 분할 제거). */
   .a4-pages-container {
     display: block !important;
     gap: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
   }
-  /* 각 .a4-page = 한 물리 페이지. 페이지 사이는 블록 레벨 강제 break로 나눈다.
-     ★ WebKit(Safari)은 <tr>의 break-inside/after는 무시하지만 블록 레벨 page-break는 존중한다.
-        (보스 원본 PDF에서 두 페이지 div 사이가 깔끔히 나뉜 것으로 확인) */
+  /* .a4-page = 전체 내용을 담는 단일 연속 시트. 강제 페이지 break 없음 —
+     내용이 넘치면 브라우저가 .exec-section 사이에서 알아서 다음 페이지로 넘긴다.
+     (예전엔 JS로 페이지 높이를 재서 .a4-page를 여러 개로 쪼개고 강제 break를 걸었으나,
+      화면 측정폭 ≠ Safari 인쇄폭이라 섹션이 넘쳐 잘리고 백지가 생겼다. 그 방식을 폐기.) */
   .a4-page {
     box-shadow: none !important;
     width: 100% !important;
     min-height: 0 !important;
     height: auto !important;
     overflow: visible !important;
-    margin: 0 auto !important;              /* 인쇄 폭 내 중앙정렬 */
-    page-break-after: always;
-    break-after: page;
-    page-break-inside: avoid;               /* 한 페이지 내용은 통째로 (섹션 단위로 미리 맞춤) */
+    margin: 0 !important;
+  }
+  /* ★ 핵심: 각 임원 섹션(자체 표 + 연·월 열 헤더)을 통째로 유지 → 페이지 경계가 "섹션 사이"에만 생김.
+     WebKit(Safari)은 <tr>의 break-inside는 무시하지만 블록 레벨 div의 break-inside는 존중한다.
+     modern·legacy 속성을 함께 지정해 WebKit 지원 편차를 보정한다. */
+  .exec-section,
+  .report-title {
+    page-break-inside: avoid;
     break-inside: avoid;
   }
-  .a4-page:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-  /* 각 페이지 div가 자체 thead 보유 → 페이지마다 제목+월 헤더 표시(반복 CSS 불필요) */
-  .a4-page table { page-break-inside: auto; }
-  /* 행 잘림 방지(폴백) — 정상 경로에선 페이지 경계가 섹션 사이에만 있어 발동 안 함 */
-  .a4-page tr { page-break-inside: avoid; break-inside: avoid; }
+  /* 행 잘림 방지(폴백) — 정상 경로에선 섹션 전체가 이미 avoid라 발동하지 않음 */
+  .exec-section tr { page-break-inside: avoid; break-inside: avoid; }
 
   /* 인쇄 시 색상 보존 (배경/테두리 유지) */
   * {

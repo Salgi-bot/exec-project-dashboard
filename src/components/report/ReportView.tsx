@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useLayoutEffect } from 'react'
+import { useMemo } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -29,9 +29,6 @@ const STATUS_CELL_TEXT: Record<StatusCategory, string> = {
 // 210mm × 297mm -> content 190mm × 277mm -> 718.1 × 1046.9 px
 const A4_CONTENT_W_PX = 720
 const A4_CONTENT_H_PX = 1047
-// 인쇄(print-media)는 화면 측정보다 살짝 크게 렌더될 수 있어, 페이지당 목표 높이에서
-// 이 여유를 뺀다. WebKit(Safari 엔진) 실측 델타로 보정한 값.
-const PAGE_SAFETY_PX = 24
 const PRINT_MONTHS = 6
 
 const PROJECT_COL_WIDTH_PCT = 25
@@ -133,13 +130,6 @@ export function ReportView() {
   const allProjects  = useFilteredProjects()
   const execOrderMap = useAppStore(s => s.execOrder)
 
-  // 측정용 숨김 노드(전체 표 1개)에서 각 임원 섹션의 자연 높이를 재고,
-  // 페이지당 목표 높이에 맞춰 "섹션 단위"로 페이지를 나눈다(행 중간 분할 방지).
-  const measureRef = useRef<HTMLDivElement>(null)
-  const bandEls    = useRef<Record<string, HTMLTableRowElement | null>>({})
-  // pageGroups: 각 페이지에 들어갈 execRowsData 인덱스 배열의 배열
-  const [pageGroups, setPageGroups] = useState<number[][]>([])
-
   const monthLabels = sheet ? getMonthLabels(sheet.period) : []
   const currentMonthIdx = sheet ? getCurrentMonthIndex(sheet.period) : 0
   let adjustedStart = Math.max(0, currentMonthIdx - 3)
@@ -200,44 +190,6 @@ export function ReportView() {
     return groups
   }, [printLabels])
 
-  // ── 섹션 단위 페이지 분할 계산 ──────────────────────────────
-  // 측정 노드(전체 표)에서 thead 높이와 각 임원 섹션 높이를 재고, 페이지당 목표 높이
-  // (A4 내용높이 − thead − 안전여유)에 맞춰 섹션을 그리디로 페이지에 담는다.
-  // 페이지 경계가 항상 "섹션 사이"에만 생기므로 행이 잘리거나 밴드 헤더가 고아로 남지 않는다.
-  // (WebThe: WebKit은 <tr> break-inside/after를 무시하지만 블록 레벨 page-break는 존중)
-  useLayoutEffect(() => {
-    const container = measureRef.current
-    const table = container?.querySelector('table')
-    if (!table) return
-    const tableRect = table.getBoundingClientRect()
-    const n = execRowsData.length
-    if (n === 0) { setPageGroups(prev => (prev.length === 0 ? prev : [])); return }
-
-    const tops = execRowsData.map(d => {
-      const el = d.exec ? bandEls.current[d.exec.id] : null
-      return el ? el.getBoundingClientRect().top : tableRect.top
-    })
-    const theadH = tops[0] - tableRect.top
-    const sectionH = tops.map((t, i) => (i < n - 1 ? tops[i + 1] : tableRect.bottom) - t)
-    const targetH = A4_CONTENT_H_PX - theadH - PAGE_SAFETY_PX
-
-    const pages: number[][] = []
-    let cur: number[] = []
-    let curH = 0
-    for (let i = 0; i < n; i++) {
-      if (cur.length > 0 && curH + sectionH[i] > targetH) { pages.push(cur); cur = []; curH = 0 }
-      cur.push(i)
-      curH += sectionH[i]
-    }
-    if (cur.length) pages.push(cur)
-
-    setPageGroups(prev => {
-      const same = prev.length === pages.length &&
-        prev.every((g, i) => g.length === pages[i].length && g.every((v, j) => v === pages[i][j]))
-      return same ? prev : pages
-    })
-  }, [execRowsData, printMonths])
-
   if (!sheet) return <div className="p-8"><EmptyState /></div>
 
   const totalExecCount = execRowsData.length
@@ -247,15 +199,20 @@ export function ReportView() {
     window.print()
   }
 
-  // 한 페이지 분량의 임원 섹션들을 표 하나로 렌더(각 페이지 div가 자체 thead 보유 → 매 페이지 헤더).
-  // bandRef: 측정 노드에서만 전달 — 각 임원 밴드 행의 DOM을 수집해 섹션 높이를 잰다.
-  function renderTable(
-    execs: typeof execRowsData,
-    bandRef?: (id: string, el: HTMLTableRowElement | null) => void,
-  ) {
-    const totalCols = 1 + printMonths
-    const today = new Date()
-    const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
+  const totalCols = 1 + printMonths
+  const today = new Date()
+  const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
+
+  // 한 임원 섹션 = 자체 표(연·월 헤더 + 밴드행 + 프로젝트행).
+  // 이 표를 감싼 블록 div(.exec-section)에 break-inside:avoid 를 걸면, Safari(WebKit)는
+  // 섹션 전체를 한 페이지에 통째로 유지하고 "섹션 사이"에서만 페이지를 나눈다.
+  // → 행 중간 잘림·헤더 고아·백지 스필이 구조적으로 발생하지 않는다.
+  // (JS로 페이지 높이를 재서 강제 분할하던 방식은 화면 측정폭 ≠ Safari 인쇄폭이라 실패했음.
+  //  이제 페이지 경계를 예측하지 않고 브라우저가 직접 나누게 맡긴다. 각 섹션 표가 자체 열
+  //  헤더를 가지므로 어느 페이지로 넘어가든 열이 항상 라벨링된다.)
+  function renderSectionTable(section: { exec: typeof orderedExecs[0]; projects: typeof printProjects }) {
+    const { exec, projects } = section
+    if (!exec) return null
     return (
       <table style={{
         width: '100%',
@@ -271,23 +228,6 @@ export function ReportView() {
           ))}
         </colgroup>
         <thead>
-          {/* 제목 행 — thead 안에 두어 매 인쇄 페이지 상단에 자동 반복 */}
-          <tr style={{ backgroundColor: '#ffffff', height: TITLE_H_PX }}>
-            <th
-              colSpan={totalCols}
-              style={{
-                ...headerCellStyle,
-                padding: '4px 8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
-                  ■ 임원회의 PROJECT 진행일정표
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 400, color: '#6b7280' }}>출력일자: {dateStr}</span>
-              </div>
-            </th>
-          </tr>
           <tr style={{ backgroundColor: '#d1d5db', height: MIN_ROW_H_PX }}>
             <th
               rowSpan={2}
@@ -337,92 +277,82 @@ export function ReportView() {
           </tr>
         </thead>
         <tbody>
-          {execs.map(({ exec, projects }) => {
-            if (!exec) return null
-            return [
-              <tr
-                key={`band-${exec.id}`}
-                ref={bandRef ? el => bandRef(exec.id, el) : undefined}
-                className="exec-band"
-                style={{ backgroundColor: '#e5e7eb', height: MIN_ROW_H_PX }}
+          <tr
+            className="exec-band"
+            style={{ backgroundColor: '#e5e7eb', height: MIN_ROW_H_PX }}
+          >
+            <td
+              colSpan={totalCols}
+              style={{
+                ...bodyCellStyle,
+                textAlign: 'left',
+                fontWeight: 700,
+                fontSize: BAND_FONT_PX,
+                color: '#111827',
+                paddingLeft: 8,
+              }}
+            >
+              ■ {exec.name} ({projects.length}건)
+            </td>
+          </tr>
+          {projects.map(project => (
+            <tr key={project.id}>
+              <td
+                style={{
+                  ...bodyCellStyle,
+                  ...cellTextWrap,
+                  fontSize: PROJECT_FONT_PX,
+                  fontWeight: 600,
+                  color: '#000',
+                  textAlign: 'left',
+                  paddingLeft: 6,
+                }}
               >
-                <td
-                  colSpan={totalCols}
-                  style={{
-                    ...bodyCellStyle,
-                    textAlign: 'left',
-                    fontWeight: 700,
-                    fontSize: BAND_FONT_PX,
-                    color: '#111827',
-                    paddingLeft: 8,
-                  }}
-                >
-                  ■ {exec.name} ({projects.length}건)
-                </td>
-              </tr>,
-              ...projects.map(project => (
-                <tr key={project.id}>
+                {project.projectName}
+              </td>
+              {printLabels.map((_, slotIdx) => {
+                const sheetMonthIdx = adjustedStart + slotIdx
+                const { text, category } = getMonthlyStatus(project.weekStatuses, sheetMonthIdx)
+                return (
                   <td
+                    key={slotIdx}
                     style={{
                       ...bodyCellStyle,
                       ...cellTextWrap,
-                      fontSize: PROJECT_FONT_PX,
-                      fontWeight: 600,
-                      color: '#000',
-                      textAlign: 'left',
-                      paddingLeft: 6,
+                      backgroundColor: STATUS_CELL_BG[category],
+                      color: STATUS_CELL_TEXT[category],
+                      textAlign: 'center',
+                      fontSize: CELL_FONT_PX,
+                      fontWeight: 500,
                     }}
                   >
-                    {project.projectName}
+                    {text && text !== '-'
+                      ? text
+                      : text === '-'
+                      ? <span style={{ color: '#ccc' }}>-</span>
+                      : ''}
                   </td>
-                  {printLabels.map((_, slotIdx) => {
-                    const sheetMonthIdx = adjustedStart + slotIdx
-                    const { text, category } = getMonthlyStatus(project.weekStatuses, sheetMonthIdx)
-                    return (
-                      <td
-                        key={slotIdx}
-                        style={{
-                          ...bodyCellStyle,
-                          ...cellTextWrap,
-                          backgroundColor: STATUS_CELL_BG[category],
-                          color: STATUS_CELL_TEXT[category],
-                          textAlign: 'center',
-                          fontSize: CELL_FONT_PX,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {text && text !== '-'
-                          ? text
-                          : text === '-'
-                          ? <span style={{ color: '#ccc' }}>-</span>
-                          : ''}
-                      </td>
-                    )
-                  })}
-                </tr>
-              )),
-            ]
-          })}
+                )
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     )
   }
 
-  // 화면 미리보기용 A4-폭 시트. 고정 높이·overflow 없이 내용만큼 늘어나게 두어
-  // (자연 흐름 인쇄와 동일) 미리보기에서도 전체 내용이 보이도록 한다.
+  // 화면 미리보기용 A4-폭 시트. 고정 높이 없이 내용만큼 늘어나게 두어(자연 흐름 인쇄와 동일)
+  // 미리보기에서도 전체 내용이 한 장으로 이어져 보이도록 한다. 실제 페이지 분할은 인쇄 시
+  // 브라우저가 .exec-section(break-inside:avoid) 경계에서 자동 수행한다.
   const pageStyle: React.CSSProperties = {
     width: A4_CONTENT_W_PX,
     minHeight: A4_CONTENT_H_PX,
     backgroundColor: '#ffffff',
     boxShadow: '0 0 8px rgba(0,0,0,0.1)',
     boxSizing: 'border-box',
+    padding: 0,
     fontFamily: PRINT_FONT_FAMILY,
   }
-
-  // 측정 전(첫 페인트)·측정 실패 시 폴백: 전체를 한 페이지에 담아 최소한 빈 화면은 피한다.
-  const pages = pageGroups.length
-    ? pageGroups
-    : (execRowsData.length ? [execRowsData.map((_, i) => i)] : [])
 
   return (
     <div className="p-6 print:p-0">
@@ -450,21 +380,11 @@ export function ReportView() {
       <div className="mb-3 text-xs font-mono no-print">
         <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 inline-block">
           <span className="font-bold text-green-800">✓ 전체 </span>
-          <span className="text-gray-600">{totalExecCount}개 임원, {totalProjCount}건 · {pages.length}페이지 (임원 섹션 단위 분할)</span>
+          <span className="text-gray-600">{totalExecCount}개 임원, {totalProjCount}건 · 임원 섹션 단위 자연 분할 (페이지 수는 인쇄 시 브라우저가 결정)</span>
         </div>
       </div>
 
-      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다. 각 임원 섹션이 페이지 경계에서 잘리지 않도록 페이지가 나뉩니다.</div>
-
-      {/* 측정 전용(숨김) — 전체 표를 렌더해 각 임원 섹션의 자연 높이를 잰다 */}
-      <div
-        ref={measureRef}
-        className="no-print"
-        aria-hidden
-        style={{ position: 'absolute', left: -99999, top: 0, width: A4_CONTENT_W_PX, visibility: 'hidden', pointerEvents: 'none' }}
-      >
-        {renderTable(execRowsData, (id, el) => { bandEls.current[id] = el })}
-      </div>
+      <div className="mb-4 text-xs text-gray-500 no-print">아래 미리보기는 실제 인쇄물과 동일한 레이아웃입니다. 각 임원 섹션은 페이지 경계에서 잘리지 않고 통째로 다음 페이지로 넘어갑니다.</div>
 
       <div
         className="a4-pages-container"
@@ -475,11 +395,39 @@ export function ReportView() {
           gap: 20,
         }}
       >
-        {pages.map((idxs, pi) => (
-          <div className="a4-page" style={pageStyle} key={pi}>
-            {renderTable(idxs.map(i => execRowsData[i]))}
+        <div className="a4-page" style={pageStyle}>
+          {/* 보고서 제목 — 맨 위 1회만. 열 헤더(연·월)는 각 임원 섹션 표가 자체 보유 */}
+          <div
+            className="report-title"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              border: CELL_BORDER,
+              boxSizing: 'border-box',
+              padding: '6px 10px',
+              minHeight: TITLE_H_PX,
+              backgroundColor: '#ffffff',
+              marginBottom: 6,
+            }}
+          >
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
+              ■ 임원회의 PROJECT 진행일정표
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 400, color: '#6b7280' }}>출력일자: {dateStr}</span>
           </div>
-        ))}
+
+          {execRowsData.map((section, i) => (
+            <div
+              className="exec-section"
+              key={section.exec?.id ?? i}
+              style={{ marginBottom: 6 }}
+            >
+              {renderSectionTable(section)}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
