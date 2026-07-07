@@ -46,6 +46,15 @@ const CELL_FONT_PX = 9
 const CELL_BORDER = '1px solid #374151'
 const PRINT_FONT_FAMILY = "'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif"
 
+// 헤더 표·섹션 표가 열을 정확히 맞추려면 동일한 fixed colgroup 을 공유해야 한다.
+const TABLE_STYLE: React.CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  tableLayout: 'fixed',
+  border: CELL_BORDER,
+  boxSizing: 'border-box',
+}
+
 const headerCellStyle: React.CSSProperties = {
   border: CELL_BORDER,
   boxSizing: 'border-box',
@@ -203,31 +212,36 @@ export function ReportView() {
   const today = new Date()
   const dateStr = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`
 
-  // 한 임원 섹션 = 자체 표(연·월 헤더 + 밴드행 + 프로젝트행).
-  // 이 표를 감싼 블록 div(.exec-section)에 break-inside:avoid 를 걸면, Safari(WebKit)는
-  // 섹션 전체를 한 페이지에 통째로 유지하고 "섹션 사이"에서만 페이지를 나눈다.
-  // → 행 중간 잘림·헤더 고아·백지 스필이 구조적으로 발생하지 않는다.
-  // (JS로 페이지 높이를 재서 강제 분할하던 방식은 화면 측정폭 ≠ Safari 인쇄폭이라 실패했음.
-  //  이제 페이지 경계를 예측하지 않고 브라우저가 직접 나누게 맡긴다. 각 섹션 표가 자체 열
-  //  헤더를 가지므로 어느 페이지로 넘어가든 열이 항상 라벨링된다.)
-  function renderSectionTable(section: { exec: typeof orderedExecs[0]; projects: typeof printProjects }) {
-    const { exec, projects } = section
-    if (!exec) return null
+  const sharedColgroup = (
+    <colgroup>
+      <col style={{ width: `${PROJECT_COL_WIDTH_PCT}%` }} />
+      {printLabels.map((_, mi) => (
+        <col key={mi} style={{ width: `${MONTH_COL_WIDTH_PCT}%` }} />
+      ))}
+    </colgroup>
+  )
+
+  // 헤더 표 = 제목 + 연·월 열 라벨. 문서 맨 위에 "한 번만" 렌더한다.
+  // (섹션마다 반복하면 임원별로 헤더가 되풀이돼 지저분해지므로 상단 1회로 고정.)
+  // 섹션 표와 동일한 fixed colgroup 을 써서 아래 데이터 행들과 열이 정확히 정렬된다.
+  function renderHeaderTable() {
     return (
-      <table style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        tableLayout: 'fixed',
-        border: CELL_BORDER,
-        boxSizing: 'border-box',
-      }}>
-        <colgroup>
-          <col style={{ width: `${PROJECT_COL_WIDTH_PCT}%` }} />
-          {printLabels.map((_, mi) => (
-            <col key={mi} style={{ width: `${MONTH_COL_WIDTH_PCT}%` }} />
-          ))}
-        </colgroup>
+      <table style={TABLE_STYLE}>
+        {sharedColgroup}
         <thead>
+          <tr style={{ backgroundColor: '#ffffff', height: TITLE_H_PX }}>
+            <th
+              colSpan={totalCols}
+              style={{ ...headerCellStyle, padding: '4px 8px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
+                  ■ 임원회의 PROJECT 진행일정표
+                </span>
+                <span style={{ fontSize: 10, fontWeight: 400, color: '#6b7280' }}>출력일자: {dateStr}</span>
+              </div>
+            </th>
+          </tr>
           <tr style={{ backgroundColor: '#d1d5db', height: MIN_ROW_H_PX }}>
             <th
               rowSpan={2}
@@ -276,6 +290,22 @@ export function ReportView() {
             ))}
           </tr>
         </thead>
+      </table>
+    )
+  }
+
+  // 한 임원 섹션 = 자체 표(밴드행 + 프로젝트행). 열 헤더는 상단 헤더 표가 대신하므로 여기엔 없다.
+  // 이 표를 감싼 블록 div(.exec-section)에 break-inside:avoid 를 걸면, Safari(WebKit)는
+  // 섹션 전체를 한 페이지에 통째로 유지하고 "섹션 사이"에서만 페이지를 나눈다.
+  // → 행 중간 잘림·백지 스필이 구조적으로 발생하지 않는다(75.pdf 실측으로 확인).
+  // (JS로 페이지 높이를 재서 강제 분할하던 방식은 화면 측정폭 ≠ Safari 인쇄폭이라 실패했음.
+  //  이제 페이지 경계를 예측하지 않고 브라우저가 직접 나누게 맡긴다.)
+  function renderSectionTable(section: { exec: typeof orderedExecs[0]; projects: typeof printProjects }) {
+    const { exec, projects } = section
+    if (!exec) return null
+    return (
+      <table style={TABLE_STYLE}>
+        {sharedColgroup}
         <tbody>
           <tr
             className="exec-band"
@@ -396,34 +426,13 @@ export function ReportView() {
         }}
       >
         <div className="a4-page" style={pageStyle}>
-          {/* 보고서 제목 — 맨 위 1회만. 열 헤더(연·월)는 각 임원 섹션 표가 자체 보유 */}
-          <div
-            className="report-title"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              border: CELL_BORDER,
-              boxSizing: 'border-box',
-              padding: '6px 10px',
-              minHeight: TITLE_H_PX,
-              backgroundColor: '#ffffff',
-              marginBottom: 6,
-            }}
-          >
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>
-              ■ 임원회의 PROJECT 진행일정표
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 400, color: '#6b7280' }}>출력일자: {dateStr}</span>
+          {/* 제목 + 연·월 열 헤더 — 문서 맨 위 1회만 */}
+          <div className="report-header">
+            {renderHeaderTable()}
           </div>
 
           {execRowsData.map((section, i) => (
-            <div
-              className="exec-section"
-              key={section.exec?.id ?? i}
-              style={{ marginBottom: 6 }}
-            >
+            <div className="exec-section" key={section.exec?.id ?? i}>
               {renderSectionTable(section)}
             </div>
           ))}
