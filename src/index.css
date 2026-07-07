@@ -93,7 +93,7 @@ body {
      WebKit(Safari)은 <tr>의 break-inside는 무시하지만 블록 레벨 div의 break-inside는 존중한다.
      modern·legacy 속성을 함께 지정해 WebKit 지원 편차를 보정한다. */
   .exec-section,
-  .report-title {
+  .report-header {
     page-break-inside: avoid;
     break-inside: avoid;
   }
