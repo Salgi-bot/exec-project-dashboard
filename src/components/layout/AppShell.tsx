@@ -10,6 +10,7 @@ import { CommandPalette } from '@/components/shared/CommandPalette'
 import {
   initCloudSync, startPolling, onSyncStatusChange, onRemoteUpdated, type SyncStatus,
 } from '@/lib/cloudSync'
+import { startVersionWatch } from '@/lib/versionWatch'
 import { useMeetingGuard } from '@/hooks/useMeetingGuard'
 
 function isInInput(target: EventTarget | null): boolean {
@@ -29,11 +30,14 @@ export function AppShell() {
   const [lastSynced, setLastSynced]   = useState<Date | undefined>()
   const [remoteToast, setRemoteToast] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
+  const [updateReady, setUpdateReady] = useState(false)
   const toastTimer                    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const syncStatusRef                 = useRef<SyncStatus>('idle')
 
   useEffect(() => {
     onSyncStatusChange((s, at) => {
       setSyncStatus(s)
+      syncStatusRef.current = s
       if (at) setLastSynced(at)
     })
 
@@ -45,8 +49,24 @@ export function AppShell() {
 
     initCloudSync().finally(() => setSynced(true))
     const stopPolling = startPolling()
-    return () => { stopPolling(); clearTimeout(toastTimer.current) }
+    const stopVersionWatch = startVersionWatch(() => setUpdateReady(true))
+    return () => { stopPolling(); stopVersionWatch(); clearTimeout(toastTimer.current) }
   }, [])
+
+  // 새 배포 감지 시: 임원 동의·협조 없이 강제 교체(보스 지시 2026-07-09).
+  // 저장 중만 아니면 즉시 리로드한다. 이 앱은 편집 즉시 'saving'→디바운스 저장 구조라,
+  // 'saving'이 아니라는 건 미저장 편집이 없다는 뜻 = 유실 0. (보던 화면은 날아가도 무방)
+  // 저장 중이면 저장이 끝날 때까지만 1초 간격으로 대기했다가 교체.
+  useEffect(() => {
+    if (!updateReady) return
+    const tryReload = () => {
+      if (syncStatusRef.current !== 'saving') { window.location.reload(); return true }
+      return false
+    }
+    if (tryReload()) return
+    const iv = setInterval(() => { if (tryReload()) clearInterval(iv) }, 1000)
+    return () => clearInterval(iv)
+  }, [updateReady])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -165,6 +185,16 @@ export function AppShell() {
       {remoteToast && (
         <div className="fixed bottom-6 right-6 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
           다른 사용자가 업데이트했습니다. 자동 반영되었습니다.
+        </div>
+      )}
+
+      {/* 새 배포 감지 배너 — 저장이 끝나는 즉시 자동 새로고침(대개 찰나만 보임) */}
+      {updateReady && (
+        <div
+          className="no-print fixed top-4 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-2 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg animate-fade-in"
+          style={{ backgroundColor: 'var(--ci-blue)' }}
+        >
+          <span>새 버전이 배포되어 곧 자동으로 새로고침됩니다…</span>
         </div>
       )}
 
