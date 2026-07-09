@@ -10,6 +10,7 @@ import { CommandPalette } from '@/components/shared/CommandPalette'
 import {
   initCloudSync, startPolling, onSyncStatusChange, onRemoteUpdated, type SyncStatus,
 } from '@/lib/cloudSync'
+import { startVersionWatch } from '@/lib/versionWatch'
 import { useMeetingGuard } from '@/hooks/useMeetingGuard'
 
 function isInInput(target: EventTarget | null): boolean {
@@ -29,11 +30,14 @@ export function AppShell() {
   const [lastSynced, setLastSynced]   = useState<Date | undefined>()
   const [remoteToast, setRemoteToast] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
+  const [updateReady, setUpdateReady] = useState(false)
   const toastTimer                    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const syncStatusRef                 = useRef<SyncStatus>('idle')
 
   useEffect(() => {
     onSyncStatusChange((s, at) => {
       setSyncStatus(s)
+      syncStatusRef.current = s
       if (at) setLastSynced(at)
     })
 
@@ -45,8 +49,28 @@ export function AppShell() {
 
     initCloudSync().finally(() => setSynced(true))
     const stopPolling = startPolling()
-    return () => { stopPolling(); clearTimeout(toastTimer.current) }
+    const stopVersionWatch = startVersionWatch(() => setUpdateReady(true))
+    return () => { stopPolling(); stopVersionWatch(); clearTimeout(toastTimer.current) }
   }, [])
+
+  // 새 배포 감지 시: 유휴(60초 무입력)·저장 중 아님이면 조용히 최신 코드로 교체.
+  // 활성 편집 중이면 리로드하지 않고 배너만 유지 → 보던 화면·미저장 편집 보호.
+  useEffect(() => {
+    if (!updateReady) return
+    let lastActivity = Date.now()
+    const bump = () => { lastActivity = Date.now() }
+    const events: (keyof WindowEventMap)[] = ['keydown', 'pointerdown', 'wheel', 'touchstart']
+    events.forEach(e => window.addEventListener(e, bump, { passive: true }))
+    const iv = setInterval(() => {
+      if (Date.now() - lastActivity > 60_000 && syncStatusRef.current !== 'saving') {
+        window.location.reload()
+      }
+    }, 15_000)
+    return () => {
+      events.forEach(e => window.removeEventListener(e, bump))
+      clearInterval(iv)
+    }
+  }, [updateReady])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -165,6 +189,22 @@ export function AppShell() {
       {remoteToast && (
         <div className="fixed bottom-6 right-6 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
           다른 사용자가 업데이트했습니다. 자동 반영되었습니다.
+        </div>
+      )}
+
+      {/* 새 배포 감지 배너 — 유휴 시 자동 새로고침, 활성 중이면 수동 버튼 */}
+      {updateReady && (
+        <div
+          className="no-print fixed top-4 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg animate-fade-in"
+          style={{ backgroundColor: 'var(--ci-blue)' }}
+        >
+          <span>새 버전이 배포되었습니다.</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="underline font-semibold whitespace-nowrap"
+          >
+            지금 새로고침
+          </button>
         </div>
       )}
 
