@@ -53,23 +53,19 @@ export function AppShell() {
     return () => { stopPolling(); stopVersionWatch(); clearTimeout(toastTimer.current) }
   }, [])
 
-  // 새 배포 감지 시: 유휴(60초 무입력)·저장 중 아님이면 조용히 최신 코드로 교체.
-  // 활성 편집 중이면 리로드하지 않고 배너만 유지 → 보던 화면·미저장 편집 보호.
+  // 새 배포 감지 시: 임원 동의·협조 없이 강제 교체(보스 지시 2026-07-09).
+  // 저장 중만 아니면 즉시 리로드한다. 이 앱은 편집 즉시 'saving'→디바운스 저장 구조라,
+  // 'saving'이 아니라는 건 미저장 편집이 없다는 뜻 = 유실 0. (보던 화면은 날아가도 무방)
+  // 저장 중이면 저장이 끝날 때까지만 1초 간격으로 대기했다가 교체.
   useEffect(() => {
     if (!updateReady) return
-    let lastActivity = Date.now()
-    const bump = () => { lastActivity = Date.now() }
-    const events: (keyof WindowEventMap)[] = ['keydown', 'pointerdown', 'wheel', 'touchstart']
-    events.forEach(e => window.addEventListener(e, bump, { passive: true }))
-    const iv = setInterval(() => {
-      if (Date.now() - lastActivity > 60_000 && syncStatusRef.current !== 'saving') {
-        window.location.reload()
-      }
-    }, 15_000)
-    return () => {
-      events.forEach(e => window.removeEventListener(e, bump))
-      clearInterval(iv)
+    const tryReload = () => {
+      if (syncStatusRef.current !== 'saving') { window.location.reload(); return true }
+      return false
     }
+    if (tryReload()) return
+    const iv = setInterval(() => { if (tryReload()) clearInterval(iv) }, 1000)
+    return () => clearInterval(iv)
   }, [updateReady])
 
   useEffect(() => {
@@ -192,19 +188,13 @@ export function AppShell() {
         </div>
       )}
 
-      {/* 새 배포 감지 배너 — 유휴 시 자동 새로고침, 활성 중이면 수동 버튼 */}
+      {/* 새 배포 감지 배너 — 저장이 끝나는 즉시 자동 새로고침(대개 찰나만 보임) */}
       {updateReady && (
         <div
-          className="no-print fixed top-4 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg animate-fade-in"
+          className="no-print fixed top-4 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-2 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg animate-fade-in"
           style={{ backgroundColor: 'var(--ci-blue)' }}
         >
-          <span>새 버전이 배포되었습니다.</span>
-          <button
-            onClick={() => window.location.reload()}
-            className="underline font-semibold whitespace-nowrap"
-          >
-            지금 새로고침
-          </button>
+          <span>새 버전이 배포되어 곧 자동으로 새로고침됩니다…</span>
         </div>
       )}
 
