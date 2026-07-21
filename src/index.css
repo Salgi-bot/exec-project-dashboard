@@ -9,6 +9,13 @@
   --ci-green: #6B8A28;
   --ci-green-dark: #556d1f;
   --ci-green-light: #f0f4e3;
+  /* 상태 구분색 — 공사중(앰버)·협의검토(바이올렛)·예정(슬레이트) */
+  --st-amber-bg: #fbeed9;
+  --st-amber-fg: #a15c11;
+  --st-violet-bg: #eeeafb;
+  --st-violet-fg: #6247b5;
+  --st-slate-bg: #eaeef3;
+  --st-slate-fg: #566472;
 }
 
 * {
@@ -44,12 +51,12 @@ body {
   pointer-events: auto;
 }
 
-/* 상태 셀 색상 (중성화: 활성만 CI 블루 파스텔, 완료만 CI 그린 파스텔) */
+/* 상태 뱃지 색상 (5종 구분: 진행중=블루·완료=그린·공사중=앰버·협의검토=바이올렛·예정=슬레이트) */
 .status-active       { background-color: var(--ci-blue-light); color: var(--ci-blue-dark); }
 .status-complete     { background-color: var(--ci-green-light); color: var(--ci-green-dark); }
-.status-pending      { background-color: #f9fafb; color: #4b5563; }
-.status-review       { background-color: #f9fafb; color: #4b5563; }
-.status-construction { background-color: #f9fafb; color: #4b5563; }
+.status-construction { background-color: var(--st-amber-bg); color: var(--st-amber-fg); }
+.status-review       { background-color: var(--st-violet-bg); color: var(--st-violet-fg); }
+.status-pending      { background-color: var(--st-slate-bg); color: var(--st-slate-fg); }
 .status-inactive     { background-color: #f9fafb; color: #9ca3af; }
 .status-empty        { background-color: #ffffff; color: #d1d5db; }
 
