@@ -30,9 +30,9 @@ export function StatusDot({ category }: { category: StatusCategory }) {
   const dotColors: Record<StatusCategory, string> = {
     active: 'bg-[color:var(--ci-blue)]',
     complete: 'bg-[color:var(--ci-green)]',
-    pending: 'bg-gray-400',
-    review: 'bg-gray-400',
-    construction: 'bg-gray-400',
+    construction: 'bg-[color:var(--st-amber-fg)]',
+    review: 'bg-[color:var(--st-violet-fg)]',
+    pending: 'bg-[color:var(--st-slate-fg)]',
     inactive: 'bg-gray-300',
     empty: 'bg-gray-100',
   }
