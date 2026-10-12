@@ -57,8 +57,6 @@ body {
 
 .flow-sheet { margin: 0 auto; }
 
-/* 같은 임원 안의 행 블록은 위 테두리를 1px 겹쳐 본체 표처럼 한 줄로 보이게 */
-.flow-block:not(.flow-head):not(.flow-sec-start) { margin-top: -1px; }
 
 @page {
   size: A4 portrait;

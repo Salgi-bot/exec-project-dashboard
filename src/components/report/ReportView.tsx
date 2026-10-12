@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { IpadPdfButton } from './IpadPdfButton'
 import { getMonthLabels } from '@/constants/periods'
 import { classifyStatus } from '@/utils/statusClassifier'
 import type { StatusCategory, WeekStatus, SheetPeriod } from '@/types/project.types'
@@ -393,6 +394,9 @@ export function ReportView() {
             {sheet.period.label} | {printLabels[0]?.yearShort} {printLabels[0]?.label} ~ {printLabels[printLabels.length - 1]?.yearShort} {printLabels[printLabels.length - 1]?.label}
           </p>
         </div>
+        <div className="flex items-start gap-4">
+        {/* 아이패드에서만 보임(PC는 렌더 안 함) — 쪽 빈칸 없는 A4 PDF 직접 생성 */}
+        <IpadPdfButton />
         <div className="flex flex-col items-end gap-1">
           <button
             onClick={handlePrint}
@@ -404,6 +408,7 @@ export function ReportView() {
             프린터로 출력
           </button>
           <span className="text-xs text-gray-500">브라우저 인쇄 다이얼로그 → 프린터 또는 PDF 선택</span>
+        </div>
         </div>
       </div>
 
