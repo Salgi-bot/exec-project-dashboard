@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 
-// 애플 기기(아이패드·아이폰·맥)에서만 보이는 「PDF 만들기」 — 윈도우 PC 화면·인쇄는 그대로.
+// 아이패드에서만 보이는 「PDF 만들기」 — PC·휴대폰 화면과 PC 인쇄에는 아무것도 바뀌지 않는다.
 // 아이패드 Safari 인쇄는 임원 묶음을 통째로 넘겨 쪽마다 빈칸이 생기고(실측 7쪽) 쪽 나눔을
 // 재현·보장할 수 없어서, 출력 화면을 행 단위로 이어 붙인 A4 PDF를 코드가 직접 만든다(2026-10-12).
-// 보스 지시로 대상을 아이패드 → 애플 기기 전체로 넓힘(같은 날).
-// PDF 라이브러리(html2canvas·jsPDF)는 버튼을 누를 때만 내려받는다(로딩 무관).
-// iPadOS Safari 는 기본이 데스크톱 모드라 맥 UA(Macintosh)를 보내므로 아래 식에 함께 걸린다.
-function isAppleDevice(): boolean {
-  return /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)
+// PDF 라이브러리(html2canvas·jsPDF)는 버튼을 누를 때만 내려받는다(PC 로딩 무관).
+// iPadOS Safari 는 기본이 데스크톱 모드라 맥 UA 를 보낸다 → 맥 UA + 터치 포인트로 가려낸다.
+function isIpad(): boolean {
+  const ua = navigator.userAgent
+  return /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
 
 function pdfFileName(): string {
@@ -23,8 +23,8 @@ const linkStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
 }
 
-export function ApplePdfButton() {
-  const [show]                  = useState(isAppleDevice)
+export function IpadPdfButton() {
+  const [show]                  = useState(isIpad)
   const [making, setMaking]     = useState<string | null>(null)
   const [pdf, setPdf]           = useState<Pdf | null>(null)
   const [error, setError]       = useState('')
@@ -76,7 +76,7 @@ export function ApplePdfButton() {
   const canShare = !!pdf && typeof navigator.canShare === 'function' && navigator.canShare({ files: [pdf.file] })
 
   return (
-    <div className="no-print" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginBottom: 16 }}>
+    <div className="no-print" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {!pdf && (
           <button
@@ -85,7 +85,7 @@ export function ApplePdfButton() {
             className="px-5 py-2.5 text-white rounded-lg font-medium"
             style={{ backgroundColor: 'var(--ci-blue)', opacity: making ? 0.6 : 1, whiteSpace: 'nowrap' }}
           >
-            {making ?? 'PDF 만들기'}
+            {making ?? 'PDF 만들기 (아이패드)'}
           </button>
         )}
         {pdf && (
@@ -105,7 +105,7 @@ export function ApplePdfButton() {
         )}
       </div>
       <span className="text-xs text-gray-500">
-        {pdf ? `A4 ${pdf.pages}쪽 준비됨 · 공유창에서 Goodnotes·Notability 선택` : '쪽 빈칸 없이 A4 PDF · 굿노트로 보내기'}
+        {pdf ? `A4 ${pdf.pages}쪽 준비됨 · 공유창에서 Goodnotes·Notability 선택` : '아이패드 전용 · 쪽 빈칸 없이 A4 PDF'}
       </span>
       {error && <span className="text-xs" style={{ color: '#b91c1c' }}>{error}</span>}
     </div>
