@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
-
-/* 아이패드 인쇄용 개인 페이지 전용 스타일 (본체 index.css·Tailwind 와 무관) */
+/* 아이패드 PDF 개인 페이지 전용 스타일 (본체 index.css·Tailwind 와 무관)
+   글꼴은 기기 내장 글꼴만 쓴다 — 웹폰트는 PDF 캡처에서 띄어쓰기가 어긋났다(flowSheet.ts 참조). */
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   background-color: #f3f4f6;
   color: #1e293b;
 }
@@ -34,6 +33,17 @@ body {
   font-weight: 600;
 }
 .ipad-print:disabled { opacity: 0.5; }
+.ipad-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.ipad-link {
+  border: 0;
+  background: none;
+  padding: 6px 2px;
+  color: #3D7CC5;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
 .ipad-hint {
   max-width: 720px;
   margin: 0 auto 16px;
