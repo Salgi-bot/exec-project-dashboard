@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+/* 아이패드 인쇄용 개인 페이지 전용 스타일 (본체 index.css·Tailwind 와 무관) */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #f3f4f6;
+  color: #1e293b;
+}
+
+.ipad-page { padding: 16px; }
+
+.ipad-bar {
+  max-width: 720px;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ipad-title { font-size: 17px; font-weight: 700; color: #1f2937; }
+.ipad-sub   { font-size: 13px; color: #6b7280; margin-top: 2px; }
+.ipad-err   { color: #b91c1c; }
+.ipad-print {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #3D7CC5;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ipad-print:disabled { opacity: 0.5; }
+.ipad-hint {
+  max-width: 720px;
+  margin: 0 auto 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+/* 원본은 화면·인쇄 모두 숨김 (복제본만 보이고 찍힌다) */
+.ipad-source { display: none !important; }
+
+.flow-sheet { margin: 0 auto; }
+
+/* 같은 임원 안의 행 블록은 위 테두리를 1px 겹쳐 본체 표처럼 한 줄로 보이게 */
+.flow-block:not(.flow-head):not(.flow-sec-start) { margin-top: -1px; }
+
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  html, body { background: #ffffff !important; margin: 0 !important; padding: 0 !important; }
+  .ipad-page { padding: 0 !important; }
+  .flow-sheet {
+    box-shadow: none !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+  /* ★ 핵심: 행(블록) 단위로만 쪽을 나눈다 → 빈칸 없이 이어 채우고, 행 중간은 안 자른다 */
+  .flow-block {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
