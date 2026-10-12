@@ -42,6 +42,8 @@ export function buildFlowSheet(source: HTMLElement): { sheet: HTMLElement; execC
     groups.forEach((group, i) => {
       const block = document.createElement('div')
       block.className = i === 0 ? 'flow-block flow-sec-start' : 'flow-block'
+      // 같은 임원 안의 행 블록은 위 테두리를 1px 겹쳐 본체 표처럼 한 줄로 보이게(CSS 없이도 동작)
+      if (i > 0) block.style.marginTop = '-1px'
       const t = document.createElement('table')
       t.setAttribute('style', table.getAttribute('style') ?? '')
       t.append(colgroup.cloneNode(true))

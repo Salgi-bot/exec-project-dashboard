@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ReportView } from '@/components/report/ReportView'
 import { loadReadOnly } from './loadReadOnly'
-import { buildFlowSheet } from './flowSheet'
-import { makeFlowPdf } from './makePdf'
+import { buildFlowSheet } from '@/lib/flowPdf/flowSheet'
+import { makeFlowPdf } from '@/lib/flowPdf/makePdf'
 
 type Status = 'loading' | 'ready' | 'error'
 type Pdf = { file: File; url: string; pages: number }
