@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 
-// 아이패드(아이폰 포함)에서만 보이는 「PDF 만들기」 — PC 화면·PC 인쇄에는 아무것도 바뀌지 않는다.
+// 아이패드에서만 보이는 「PDF 만들기」 — PC·휴대폰 화면과 PC 인쇄에는 아무것도 바뀌지 않는다.
 // 아이패드 Safari 인쇄는 임원 묶음을 통째로 넘겨 쪽마다 빈칸이 생기고(실측 7쪽) 쪽 나눔을
 // 재현·보장할 수 없어서, 출력 화면을 행 단위로 이어 붙인 A4 PDF를 코드가 직접 만든다(2026-10-12).
 // PDF 라이브러리(html2canvas·jsPDF)는 버튼을 누를 때만 내려받는다(PC 로딩 무관).
-function isIpadOrIphone(): boolean {
+// iPadOS Safari 는 기본이 데스크톱 모드라 맥 UA 를 보낸다 → 맥 UA + 터치 포인트로 가려낸다.
+function isIpad(): boolean {
   const ua = navigator.userAgent
-  return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+  return /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
 
 function pdfFileName(): string {
@@ -23,7 +24,7 @@ const linkStyle: React.CSSProperties = {
 }
 
 export function IpadPdfButton() {
-  const [show]                  = useState(isIpadOrIphone)
+  const [show]                  = useState(isIpad)
   const [making, setMaking]     = useState<string | null>(null)
   const [pdf, setPdf]           = useState<Pdf | null>(null)
   const [error, setError]       = useState('')
@@ -82,7 +83,7 @@ export function IpadPdfButton() {
             onClick={handleMake}
             disabled={!!making}
             className="px-5 py-2.5 text-white rounded-lg font-medium"
-            style={{ backgroundColor: 'var(--ci-blue)', opacity: making ? 0.6 : 1 }}
+            style={{ backgroundColor: 'var(--ci-blue)', opacity: making ? 0.6 : 1, whiteSpace: 'nowrap' }}
           >
             {making ?? 'PDF 만들기 (아이패드)'}
           </button>
@@ -93,9 +94,9 @@ export function IpadPdfButton() {
               <button
                 onClick={handleShare}
                 className="px-5 py-2.5 text-white rounded-lg font-medium"
-                style={{ backgroundColor: 'var(--ci-blue)' }}
+                style={{ backgroundColor: 'var(--ci-blue)', whiteSpace: 'nowrap' }}
               >
-                굿노트·노타빌리티로 보내기
+                굿노트로 보내기
               </button>
             )}
             <a href={pdf.url} download={pdf.file.name} data-pages={pdf.pages} style={linkStyle}>파일로 저장</a>
@@ -104,7 +105,7 @@ export function IpadPdfButton() {
         )}
       </div>
       <span className="text-xs text-gray-500">
-        {pdf ? `PDF 준비됨 · A4 ${pdf.pages}쪽 (행 단위로 이어 붙임)` : '아이패드 전용 · 쪽 빈칸 없이 A4 PDF'}
+        {pdf ? `A4 ${pdf.pages}쪽 준비됨 · 공유창에서 Goodnotes·Notability 선택` : '아이패드 전용 · 쪽 빈칸 없이 A4 PDF'}
       </span>
       {error && <span className="text-xs" style={{ color: '#b91c1c' }}>{error}</span>}
     </div>
