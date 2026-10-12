@@ -33,6 +33,11 @@ export function buildFlowSheet(source: HTMLElement): { sheet: HTMLElement; execC
     execCount += 1
     rowCount += rows.length - 1 // 첫 줄은 임원 제목줄
 
+    // 임원 하나 = .flow-sec 하나(PDF 생성 시 이 단위로 캡처한다)
+    const sec = document.createElement('div')
+    sec.className = 'flow-sec'
+    sheet.append(sec)
+
     const groups = rows.length > 1 ? [rows.slice(0, 2), ...rows.slice(2).map(r => [r])] : [rows]
     groups.forEach((group, i) => {
       const block = document.createElement('div')
@@ -44,9 +49,29 @@ export function buildFlowSheet(source: HTMLElement): { sheet: HTMLElement; execC
       group.forEach(r => tbody.append(r.cloneNode(true)))
       t.append(tbody)
       block.append(t)
-      sheet.append(block)
+      sec.append(block)
     })
   })
 
+  prepareForCapture(sheet)
   return { sheet, execCount, rowCount }
+}
+
+// PDF 캡처(html2canvas) 결함 2가지를 시트 단계에서 막는다(2026-10-12 실측).
+// 1) 글꼴: 웹폰트(Noto Sans KR, 구글 폰트 부분 파일)는 화면 배치와 캔버스 그리기에서 서로 다른
+//    글꼴이 잡혀 띄어쓰기가 붙거나 벌어졌다 → 기기 내장 글꼴로 통일(화면 = PDF).
+// 2) 줄 배경: html2canvas 는 <tr> 배경을 줄 전체 폭으로 칠해, 위 줄에서 두 줄을 차지한 칸
+//    (「프로젝트명 / 담당임원」)의 글자를 덮었다 → 줄 배경을 각 칸으로 옮긴다(보이는 색은 동일).
+const DEVICE_FONT = "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
+
+function prepareForCapture(sheet: HTMLElement) {
+  sheet.style.fontFamily = DEVICE_FONT
+  sheet.querySelectorAll<HTMLTableRowElement>('tr').forEach(tr => {
+    const bg = tr.style.backgroundColor
+    if (!bg) return
+    for (const cell of Array.from(tr.cells)) {
+      if (!cell.style.backgroundColor) cell.style.backgroundColor = bg
+    }
+    tr.style.backgroundColor = ''
+  })
 }
