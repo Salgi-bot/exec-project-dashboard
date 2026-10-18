@@ -17,13 +17,20 @@ let baseState: MergeableState | null = null
 // 받아 본 옛 버전의 실시간 알림이 늦게 오면 다시 처리하지 않는다 — 옛 상태로 병합하면 방금 저장한 내 입력이
 // 「원격에서 지워진 것」처럼 보여 다시 지워진다.
 const seenVersions = new Set<number>()
+// 서버 시각 문자열 → ms. 실시간 알림이 「2026-10-12 00:08:55.99+00」처럼 공백·짧은 시차 형식으로 오면
+// 사파리(아이패드)의 Date.parse 가 NaN 을 내므로 ISO 형식으로 고쳐 읽는다.
+function verMs(v: string | null | undefined): number {
+  if (!v) return NaN
+  const iso = v.trim().replace(' ', 'T').replace(/([+-]\d\d)$/, '$1:00')
+  return Date.parse(iso)
+}
 function markSeen(v: string | null | undefined) {
-  const t = v ? Date.parse(v) : NaN
+  const t = verMs(v)
   if (isNaN(t)) return
   seenVersions.add(t)
   if (seenVersions.size > 500) seenVersions.delete(seenVersions.values().next().value as number)
 }
-const wasSeen = (v: string | undefined) => { const t = v ? Date.parse(v) : NaN; return !isNaN(t) && seenVersions.has(t) }
+const wasSeen = (v: string | undefined) => { const t = verMs(v); return !isNaN(t) && seenVersions.has(t) }
 
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error'
 
