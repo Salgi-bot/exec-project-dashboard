@@ -3,7 +3,8 @@ import { useAppStore } from '@/store/appStore'
 import { EXECUTIVE_MAP } from '@/constants/executives'
 import { merge3, sameShared, type MergeableState } from './mergeState'
 
-const STATE_ID = 'main'
+// 데이터 행 id. 운영은 'main'. 시험 때만 VITE_STATE_ID 로 격리 행을 쓴다(실데이터 오염 없이 실서버·실브라우저 시험).
+const STATE_ID = (import.meta.env.VITE_STATE_ID as string | undefined) || 'main'
 
 // 마지막으로 인지한 서버 버전(updated_at). 저장 시 이 버전일 때만 덮어쓴다(낙관적 동시성).
 // → 복원 전 열어둔 옛 탭이 최신 데이터를 통째로 덮어버리는 사고를 구조적으로 방지.
