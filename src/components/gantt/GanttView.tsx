@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useFilteredProjects, useActiveSheet } from '@/hooks/useFilteredProjects'
 import { useAppStore } from '@/store/appStore'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { EmptyState, NoResults } from '@/components/shared/EmptyState'
 import { Modal } from '@/components/shared/Modal'
 import { StatusEditModal } from './StatusEditModal'
 import { AddProjectModal } from './AddProjectModal'
@@ -236,7 +236,7 @@ export function GanttView() {
     }
   }
 
-  if (projects.length === 0) return <div className="p-8"><EmptyState /></div>
+  if (projects.length === 0) return <div className="p-8"><NoResults /></div>
 
   const CELL_W = cellW
   const totalWidth = NAME_W + ASSIGNEE_W + CELL_W * sheet.period.totalMonths * 4

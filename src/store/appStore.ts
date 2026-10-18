@@ -5,12 +5,19 @@ import { SHEET_IDS } from '@/types/project.types'
 
 type ViewMode = 'dashboard' | 'gantt' | 'projects' | 'report'
 
+// 되돌리기 한 단계 = 그 편집이 건드린 칸들의 「편집 전 값」(없었으면 null).
+// ★2026-10-18: 종전엔 editQueue 전체 복사본을 되살려, 그사이 실시간으로 들어온 남의 입력까지 지웠다.
+type UndoPatch = { projectId: string; monthIndex: number; weekIndex: number; prev: CellEdit | null }[]
+const sameCell = (a: { projectId: string; monthIndex: number; weekIndex: number },
+                  b: { projectId: string; monthIndex: number; weekIndex: number }) =>
+  a.projectId === b.projectId && a.monthIndex === b.monthIndex && a.weekIndex === b.weekIndex
+
 interface AppState {
   // 데이터
   sheets: Partial<Record<SheetId, SheetData>>
   activeSheetId: SheetId
   editQueue: CellEdit[]
-  undoStack: CellEdit[][]
+  undoStack: UndoPatch[]
   fileName: string | null
 
   // 필터
@@ -95,45 +102,49 @@ export const useAppStore = create<AppState>()(
       setActiveSheet: (sheetId) => set({ activeSheetId: sheetId, selectedExecutiveIds: [] }),
 
       applyEdit: (edit) => set((state) => {
-        const snapshot = [...state.editQueue]
-        const existing = state.editQueue.findIndex(
-          e => e.projectId === edit.projectId &&
-               e.monthIndex === edit.monthIndex &&
-               e.weekIndex === edit.weekIndex
-        )
+        const existing = state.editQueue.findIndex(e => sameCell(e, edit))
+        const patch: UndoPatch = [{ projectId: edit.projectId, monthIndex: edit.monthIndex, weekIndex: edit.weekIndex,
+                                    prev: existing >= 0 ? state.editQueue[existing] : null }]
         const newQueue = [...state.editQueue]
         if (existing >= 0) newQueue[existing] = edit
         else newQueue.push(edit)
         return {
           editQueue: newQueue,
-          undoStack: [...state.undoStack.slice(-19), snapshot],
+          undoStack: [...state.undoStack.slice(-19), patch],
         }
       }),
 
       applyRangeEdit: (projectId, startAbsWeek, endAbsWeek, text) => set((state) => {
-        const snapshot = [...state.editQueue]
         const start = Math.min(startAbsWeek, endAbsWeek)
         const end   = Math.max(startAbsWeek, endAbsWeek)
         const queue = [...state.editQueue]
+        const patch: UndoPatch = []
         for (let abs = start; abs <= end; abs++) {
           const monthIndex = Math.floor(abs / 4)
           const weekIndex  = abs % 4
           const edit: CellEdit = { projectId, monthIndex, weekIndex, newText: text, timestamp: Date.now() }
-          const idx = queue.findIndex(e => e.projectId === projectId && e.monthIndex === monthIndex && e.weekIndex === weekIndex)
+          const idx = queue.findIndex(e => sameCell(e, edit))
+          patch.push({ projectId, monthIndex, weekIndex, prev: idx >= 0 ? queue[idx] : null })
           if (idx >= 0) queue[idx] = edit
           else queue.push(edit)
         }
         return {
           editQueue: queue,
-          undoStack: [...state.undoStack.slice(-19), snapshot],
+          undoStack: [...state.undoStack.slice(-19), patch],
         }
       }),
 
+      // 마지막 편집이 건드린 칸만 편집 전 값으로 되돌린다(다른 칸·남의 입력은 그대로).
       undo: () => set((state) => {
         if (state.undoStack.length === 0) return {}
         const newStack = [...state.undoStack]
-        const restored = newStack.pop()!
-        return { editQueue: restored, undoStack: newStack }
+        const patch = newStack.pop()!
+        let queue = [...state.editQueue]
+        for (const cell of patch) {
+          queue = queue.filter(e => !sameCell(e, cell))
+          if (cell.prev) queue.push(cell.prev)
+        }
+        return { editQueue: queue, undoStack: newStack }
       }),
 
       addCustomProject: (executiveId, projectName, client, assignee) => set((state) => {
