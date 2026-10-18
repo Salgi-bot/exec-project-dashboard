@@ -17,8 +17,8 @@ let baseState: MergeableState | null = null
 // 받아 본 옛 버전의 실시간 알림이 늦게 오면 다시 처리하지 않는다 — 옛 상태로 병합하면 방금 저장한 내 입력이
 // 「원격에서 지워진 것」처럼 보여 다시 지워진다.
 const seenVersions = new Set<number>()
-// 서버 시각 문자열 → ms. 실시간 알림이 「2026-10-12 00:08:55.99+00」처럼 공백·짧은 시차 형식으로 오면
-// 사파리(아이패드)의 Date.parse 가 NaN 을 내므로 ISO 형식으로 고쳐 읽는다.
+// 서버 시각 문자열 → ms. 알림의 시각 표기가 REST 응답과 다르게(공백 구분·「+00」처럼 짧은 시차) 올 경우에 대비해
+// ISO 형식으로 고쳐 읽는다 — 그런 표기는 사파리(아이패드)의 Date.parse 가 NaN 을 낸다. 실측 표기 확인 전의 방어 코드.
 function verMs(v: string | null | undefined): number {
   if (!v) return NaN
   const iso = v.trim().replace(' ', 'T').replace(/([+-]\d\d)$/, '$1:00')
@@ -223,6 +223,27 @@ export async function loadFromCloud(): Promise<boolean> {
   }
 }
 
+// 서버 최신본을 받아 3자 병합. 시각이 내가 아는 버전보다 이른 알림(늦게 온 옛 버전이거나, 시계가 늦은 PC의 저장)은
+// 알림 내용을 믿지 않고 이 경로로 처리한다 — 옛 내용과 병합하면 그 창 화면이 옛 상태로 돌아간다(감사 A261018-183144 8번).
+async function refreshFromServer() {
+  const { data, error } = await supabase
+    .from('app_state')
+    .select('data,updated_at')
+    .eq('id', STATE_ID)
+    .single()
+  if (error || !data || !hasData(data.data)) return
+  const v = data.updated_at as string
+  if (v === lastKnownUpdatedAt || wasSeen(v)) return
+  const before = snap()
+  const remote = syncExecutiveTitles(data.data as MergeableState)
+  const merged = merge3(baseState, getPersistedState() as MergeableState, remote)
+  baseState = remote
+  lastKnownUpdatedAt = v
+  markSeen(v)
+  applyMerged(merged)
+  if (snap() !== before) { notify('saved', new Date()); _onRemoteUpdate?.() }
+}
+
 // ── Realtime 구독 (다른 사용자 변경 즉시 반영) ─────────────
 export function startPolling(): () => void {
   const channel = supabase
@@ -243,6 +264,10 @@ export function startPolling(): () => void {
           if (incoming) { adoptServerState(remoteState as Persisted, incoming); notify('saved', new Date()); _onRemoteUpdate?.() }
           return
         }
+
+        // 내가 아는 버전보다 이른 시각의 알림 → 내용 대신 서버 최신본으로 병합
+        const inMs = verMs(incoming), knownMs = verMs(lastKnownUpdatedAt)
+        if (!isNaN(inMs) && !isNaN(knownMs) && inMs < knownMs) { void refreshFromServer(); return }
 
         // 3자 병합: 내가 기준에서 바꾼 키만 내 값, 나머지(남의 입력)는 원격 값
         const before = snap()

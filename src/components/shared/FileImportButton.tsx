@@ -6,7 +6,7 @@ const ADMIN_PW = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined
 
 export function FileImportButton() {
   const inputRef  = useRef<HTMLInputElement>(null)
-  const { handleInputChange, handleDrop } = useExcelImport()
+  const { handleInputChange } = useExcelImport()
   const fileName  = useAppStore(s => s.fileName)
 
   const [modal, setModal]     = useState(false)
@@ -30,7 +30,9 @@ export function FileImportButton() {
 
   return (
     <>
-      <div onDrop={handleDrop} onDragOver={e => e.preventDefault()}>
+      {/* ★2026-10-18: 끌어다 놓기 가져오기 제거 — 버튼 위로 파일을 놓으면 비밀번호 확인 없이 모든 사용자 데이터가 교체됐다.
+          가져오기는 버튼 → 관리자 비밀번호 → 파일 선택 한 경로만 둔다. */}
+      <div>
         <input
           ref={inputRef}
           type="file"
